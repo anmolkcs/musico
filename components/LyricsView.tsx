@@ -7,6 +7,8 @@ import { useTheme } from "./Theme";
 
 type Props = { song: Song };
 
+const LINE_HEIGHT = 72; // fixed height per line so scrollToIndex is exact
+
 export default function LyricsView({ song }: Props) {
   const { colors } = useTheme();
   const [lyrics, setLyrics] = useState<LyricLine[] | null>(null);
@@ -19,7 +21,6 @@ export default function LyricsView({ song }: Props) {
 
   const { position } = useProgress(250);
   const playbackState = usePlaybackState();
-  const playing = playbackState?.state === State.Playing;
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +58,11 @@ export default function LyricsView({ song }: Props) {
     if (activeIndex === lastAutoIndex.current) return;
     lastAutoIndex.current = activeIndex;
     try {
-      listRef.current?.scrollToIndex({ index: activeIndex, viewPosition: 0.35, animated: true });
+      listRef.current?.scrollToIndex({
+        index: activeIndex,
+        viewPosition: 0.35,
+        animated: true,
+      });
     } catch {}
   }, [activeIndex, lyrics]);
 
@@ -90,25 +95,28 @@ export default function LyricsView({ song }: Props) {
       ref={listRef}
       data={lyrics ?? []}
       keyExtractor={(_, i) => String(i)}
-      contentContainerStyle={{ paddingVertical: 24, paddingHorizontal: 20, gap: 14 }}
+      contentContainerStyle={{ paddingVertical: 24 }}
       showsVerticalScrollIndicator={false}
+      getItemLayout={(_, index) => ({
+        length: LINE_HEIGHT,
+        offset: LINE_HEIGHT * index,
+        index,
+      })}
       onScrollBeginDrag={() => {
         userScrolling.current = true;
       }}
       onMomentumScrollEnd={() => {
         setTimeout(() => (userScrolling.current = false), 3000);
       }}
-      onScrollToIndexFailed={(info) => {
-        setTimeout(
-          () => listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0.35, animated: true }),
-          50
-        );
-      }}
       renderItem={({ item, index }) => {
         const active = index === activeIndex;
         return (
-          <Pressable onPress={() => TrackPlayer.seekTo(item.time)}>
+          <Pressable
+            style={{ height: LINE_HEIGHT, justifyContent: "center" }}
+            onPress={() => TrackPlayer.seekTo(item.time)}
+          >
             <Text
+              numberOfLines={2}
               style={[
                 styles.line,
                 { color: active ? colors.text : colors.muted, fontWeight: active ? "800" : "500" },
@@ -143,6 +151,6 @@ const styles = StyleSheet.create({
   },
   line: {
     fontSize: 22,
-    lineHeight: 30,
+    lineHeight: 28,
   },
 });

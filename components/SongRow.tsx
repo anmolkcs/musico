@@ -49,11 +49,7 @@ export default function SongRow({
       android_ripple={{ color: colors.border }}
       style={[styles.row, { paddingHorizontal: dense ? 12 : 16 }]}
     >
-      {typeof index === "number" ? (
-        <Text style={[styles.index, { color: colors.muted, width: size, textAlign: "center" }]}>{index + 1}</Text>
-      ) : (
-        <Artwork song={song} size={size} radius={dense ? 6 : 8} />
-      )}
+      <Artwork song={song} size={size} radius={dense ? 6 : 8} />
       <View style={styles.meta}>
         <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
           {song.title}

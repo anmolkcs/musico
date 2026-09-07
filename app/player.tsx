@@ -22,7 +22,8 @@ export default function PlayerScreen() {
   const { position, duration } = useProgress(500);
   const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
   const song = songs[index] ?? null;
-  const likedIds = useLibraryStore((s) => new Set(s.liked.map((t) => t.id)));
+  const liked = useLibraryStore((s) => s.liked);
+  const likedSet = React.useMemo(() => new Set(liked.map((t) => t.id)), [liked]);
   const like = useLibraryStore((s) => s.like);
   const [showLyrics, setShowLyrics] = useState(false);
   const [seeking, setSeeking] = useState<number | null>(null);
@@ -56,7 +57,7 @@ export default function PlayerScreen() {
     );
   }
 
-  const liked = likedIds.has(song.id);
+  const isLiked = likedSet.has(song.id);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]} {...panResponder.panHandlers}>
@@ -173,8 +174,8 @@ export default function PlayerScreen() {
           </View>
 
           <View style={styles.bottomRow}>
-            <Pressable hitSlop={12} onPress={() => like(song, !liked)}>
-              <Ionicons name={liked ? "heart" : "heart-outline"} size={24} color={liked ? colors.accent : colors.muted} />
+            <Pressable hitSlop={12} onPress={() => like(song, !isLiked)}>
+              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={24} color={isLiked ? colors.accent : colors.muted} />
             </Pressable>
             <Slider
               style={styles.volume}

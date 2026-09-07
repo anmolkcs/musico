@@ -108,14 +108,15 @@ export async function setLiked(db: SQLite.SQLiteDatabase, id: string, liked: boo
   await db.runAsync(`UPDATE tracks SET liked = ?, likedAt = ? WHERE id = ?`, liked ? 1 : 0, liked ? Date.now() : null, id);
 }
 
-export async function recordPlay(db: SQLite.SQLiteDatabase, id: string) {
+export async function recordPlay(db: SQLite.SQLiteDatabase, song: Song) {
+  await upsertTrack(db, song);
   const now = Date.now();
   await db.runAsync(
     `UPDATE tracks SET playCount = playCount + 1, lastPlayedAt = ? WHERE id = ?`,
     now,
-    id
+    song.id
   );
-  await db.runAsync(`INSERT INTO history (trackId, playedAt) VALUES (?, ?)`, id, now);
+  await db.runAsync(`INSERT INTO history (trackId, playedAt) VALUES (?, ?)`, song.id, now);
   await db.runAsync(
     `DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY playedAt DESC LIMIT 500)`
   );

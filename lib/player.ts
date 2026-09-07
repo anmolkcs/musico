@@ -133,7 +133,7 @@ export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}
     if (autoPlay) await TrackPlayer.play();
     // history bookkeeping
     openDb()
-      .then((db) => recordPlay(db, song.id).catch(() => {}))
+      .then((db) => recordPlay(db, song).catch(() => {}))
       .catch(() => {});
   } catch (e) {
     if (seq !== loadSeq) return;

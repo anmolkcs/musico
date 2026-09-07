@@ -159,7 +159,12 @@ export default function SearchScreen() {
                 }
               />
             ) : (
-              <SongRow song={item} index={undefined} queue={songs} sourceName={`Search: ${query}`} />
+              <SongRow
+                song={item}
+                index={Math.max(0, songs.indexOf(item))}
+                queue={songs}
+                sourceName={`Search: ${query}`}
+              />
             )
           }
         />
