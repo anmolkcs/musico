@@ -2,10 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import React, { useRef, useState } from "react";
+import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import TrackPlayer, { State, usePlaybackState, useProgress } from "react-native-track-player";
@@ -34,20 +32,17 @@ export default function PlayerScreen() {
   const playing = playbackState?.state === State.Playing || playbackState?.state === State.Buffering;
 
   // swipe-down to dismiss
-  const ty = useSharedValue(0);
-  const gesture = Gesture.Pan()
-    .runOnJS(true)
-    .onUpdate((e) => {
-      if (e.translationY > 0) ty.value = e.translationY;
+  const dismissRef = useRef(router);
+  dismissRef.current = router;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) =>
+        g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy > 120 || g.vy > 1.2) dismissRef.current.back();
+      },
     })
-    .onEnd((e) => {
-      if (e.translationY > 120 || e.velocityY > 1200) {
-        runOnJS(() => router.back())();
-      } else {
-        ty.value = withSpring(0, { damping: 18 });
-      }
-    });
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: ty.value }] }));
+  ).current;
 
   if (!song) {
     return (
@@ -64,8 +59,7 @@ export default function PlayerScreen() {
   const liked = likedIds.has(song.id);
 
   return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View style={[styles.container, animatedStyle]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]} {...panResponder.panHandlers}>
         <LinearGradient
           colors={[colors.card, colors.background]}
           style={StyleSheet.absoluteFill}
@@ -198,8 +192,7 @@ export default function PlayerScreen() {
             <Ionicons name="volume-high" size={20} color={colors.muted} />
           </View>
         </View>
-      </Animated.View>
-    </GestureDetector>
+      </View>
   );
 }
 

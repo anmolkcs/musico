@@ -1,13 +1,11 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import TrackPlayer from "react-native-track-player";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PlaybackService, setupPlayer } from "@/lib/player";
 import { useLibraryStore } from "@/store/library";
 import { useDownloadsStore } from "@/lib/downloads";
@@ -49,25 +47,23 @@ export default function RootLayout() {
         };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <MusicoThemeProvider>
-          <ThemeProvider value={navTheme}>
-            <StatusBar style={theme === "dark" ? "light" : "dark"} />
-            <View style={{ flex: 1, backgroundColor: navTheme.colors.background }}>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen
-                  name="player"
-                  options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
-                />
-                <Stack.Screen name="downloads" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
-              </Stack>
-              <TrackMenu />
-            </View>
-          </ThemeProvider>
-        </MusicoThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <MusicoThemeProvider>
+        <ThemeProvider value={navTheme}>
+          <StatusBar style={theme === "dark" ? "light" : "dark"} />
+          <View style={{ flex: 1, backgroundColor: navTheme.colors.background }}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="player"
+                options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
+              />
+              <Stack.Screen name="downloads" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+            </Stack>
+            <TrackMenu />
+          </View>
+        </ThemeProvider>
+      </MusicoThemeProvider>
+    </SafeAreaProvider>
   );
 }

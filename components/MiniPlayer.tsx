@@ -5,7 +5,6 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackState, State, useProgress } from "react-native-track-player";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { artworkFor } from "../lib/types";
 import { playNext, togglePlayPause } from "../lib/player";
 import { useTheme } from "./Theme";
@@ -67,8 +66,7 @@ export default function MiniPlayer() {
 function MiniProgress({ color }: { color: string }) {
   const { position, duration } = useProgress(500);
   const pct = duration > 0 ? Math.min(1, position / duration) : 0;
-  const style = useAnimatedStyle(() => ({ width: `${pct * 100}%` }));
-  return <Animated.View style={[styles.progressBar, style, { backgroundColor: color }]} />;
+  return <View style={[styles.progressBar, { width: `${pct * 100}%`, backgroundColor: color }]} />;
 }
 
 const styles = StyleSheet.create({
