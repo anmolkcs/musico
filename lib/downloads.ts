@@ -87,6 +87,8 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
         throw new Error(`Download failed (HTTP ${result?.status ?? "unknown"})`);
       }
       await setDownloadStatus(db, song.id, 2, result.uri);
+      const { useLibraryStore } = await import("../store/library");
+      useLibraryStore.getState().refresh().catch(() => {});
       set((state) => ({
         items: {
           ...state.items,

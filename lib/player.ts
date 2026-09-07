@@ -9,6 +9,7 @@ import { artworkFor, Song } from "./types";
 import { getTrack, recordPlay } from "./db";
 import { openDb } from "./db";
 import { currentSong, useQueueStore } from "../store/queue";
+import { useLibraryStore } from "../store/library";
 import { StreamResult } from "../modules/yt-core";
 
 let playerReady = false;
@@ -134,6 +135,7 @@ export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}
     // history bookkeeping
     openDb()
       .then((db) => recordPlay(db, song).catch(() => {}))
+      .then(() => useLibraryStore.getState().refresh().catch(() => {}))
       .catch(() => {});
   } catch (e) {
     if (seq !== loadSeq) return;
