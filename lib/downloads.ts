@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { create } from "zustand";
 import { openDb, setDownloadStatus, upsertTrack } from "./db";
 import { Song } from "./types";

@@ -7,7 +7,7 @@ import { useTheme } from "@/components/Theme";
 import { useLibraryStore } from "@/store/library";
 
 type Row = {
-  icon: keyof typeof Ionicons.IconMap;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   count: number;
   route: string;

@@ -13,6 +13,7 @@ type Props = {
   queue?: Song[];
   sourceName?: string;
   onPress?: () => void;
+  onLongPress?: () => void;
   showArtist?: boolean;
   trailing?: React.ReactNode;
   dense?: boolean;
@@ -24,6 +25,7 @@ export default function SongRow({
   queue,
   sourceName,
   onPress,
+  onLongPress,
   showArtist = true,
   trailing,
   dense = false,
@@ -38,10 +40,12 @@ export default function SongRow({
         playQueue(queue && queue.length > 0 ? queue : [song], index ?? 0, sourceName ?? "queue").catch(() => {});
       };
 
+  const handleLongPress = onLongPress ?? (() => openMenu(song));
+
   return (
     <Pressable
       onPress={handlePress}
-      onLongPress={() => openMenu(song)}
+      onLongPress={handleLongPress}
       android_ripple={{ color: colors.border }}
       style={[styles.row, { paddingHorizontal: dense ? 12 : 16 }]}
     >

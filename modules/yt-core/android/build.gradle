@@ -50,4 +50,5 @@ dependencies {
   // Same extraction engine as NewPipe / ViMusic / InnerTune.
   // When YouTube breaks extraction, bump this version and rebuild.
   api "com.github.TeamNewPipe:NewPipeExtractor:v0.26.5"
+  implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }

@@ -13,8 +13,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SongRow from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";
-import { Song, SearchResultItem } from "@/lib/types";
-import YtCore from "@/modules/yt-core";
+import { Song } from "@/lib/types";
+import YtCore, { SearchResultItem } from "@/modules/yt-core";
 
 const FILTERS = [
   { key: "songs", label: "Songs" },

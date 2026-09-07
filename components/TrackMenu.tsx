@@ -10,7 +10,7 @@ import { useDownloadsStore } from "../lib/downloads";
 import { openDb, upsertTrack } from "../lib/db";
 
 type Option = {
-  icon: keyof typeof Ionicons.IconMap;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   danger?: boolean;
   onPress: () => void;

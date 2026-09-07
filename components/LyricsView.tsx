@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import TrackPlayer, { usePlaybackState, useProgress, State } from "react-native-track-player";
 import { getLyrics, LyricLine } from "../lib/lyrics";
 import { Song } from "../lib/types";
@@ -95,7 +95,7 @@ export default function LyricsView({ song }: Props) {
       onScrollBeginDrag={() => {
         userScrolling.current = true;
       }}
-      onMomentumEnd={() => {
+      onMomentumScrollEnd={() => {
         setTimeout(() => (userScrolling.current = false), 3000);
       }}
       onScrollToIndexFailed={(info) => {

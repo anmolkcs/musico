@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { FlatList } from "react-native";
+import { FlatList, View } from "react-native";
 import ScreenHeader from "@/components/ScreenHeader";
 import SongRow from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";

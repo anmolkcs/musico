@@ -1,50 +1,55 @@
-# Welcome to your Expo app 👋
+# musico
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Free Apple Music–style music app for Android. Streams from YouTube Music using the
+[NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) engine (the same one behind
+NewPipe / ViMusic / InnerTune), with synced lyrics from [LRCLIB](https://lrclib.net).
+No accounts, no API keys, no server — everything runs on-device.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- Expo SDK 54 + expo-router (tabs: Home / Search / Library, mini-player, full-screen player)
+- Extraction: local Expo module [`modules/yt-core`](modules/yt-core) (Kotlin) wrapping NewPipeExtractor
+- Playback: react-native-track-player (ExoPlayer) — background playback + lock-screen controls
+- Library: expo-sqlite + zustand (tracks, liked, playlists, history, downloads, lyrics cache, settings)
+- Downloads: expo-file-system (audio-only m4a/opus saved as-is, offline playback)
+- Lyrics: LRCLIB synced LRC with auto-scroll + click-to-seek
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Development
 
 ```bash
-npm run reset-project
+npm install
+npx expo prebuild -p android      # generate android/ (already generated)
+cd android && ./gradlew assembleDebug   # build the dev client APK
+adb install android/app/build/outputs/apk/debug/app-debug.apk
+npx expo start --dev-client        # Metro; app connects via adb reverse tcp:8081
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+A development build is required (not Expo Go) because of the native extraction module and
+react-native-track-player.
 
-## Learn more
+### Waydroid testing
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+waydroid session start &            # note the IP from `waydroid status`
+adb connect <waydroid-ip>:5555
+adb reverse tcp:8081 tcp:8081
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## When extraction breaks (YouTube changes)
 
-## Join the community
+YouTube changes their internals regularly. When search/playback fails, bump the extractor
+version in [`modules/yt-core/android/build.gradle`](modules/yt-core/android/build.gradle):
 
-Join our community of developers creating universal apps.
+```gradle
+api "com.github.TeamNewPipe:NewPipeExtractor:vX.Y.Z"   // latest: https://github.com/TeamNewPipe/NewPipeExtractor/releases
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+then rebuild the APK. Latest tested version: **v0.26.5**.
+
+A host-JVM smoke test for extraction lives in [`scripts/extraction-test`](scripts/extraction-test):
+it verifies search, stream URL resolution, stream playability and LRCLIB without a device.
+
+## License notes
+
+- NewPipeExtractor is GPL-3.0: fine for personal use; if you distribute this app, it must be GPL too.

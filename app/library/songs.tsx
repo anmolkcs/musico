@@ -58,7 +58,7 @@ function renderTrailing(liked: boolean, colors: any) {
   return liked ? <Ionicons name="heart" size={14} color={colors.accent} style={{ marginRight: 4 }} /> : undefined;
 }
 
-export function Empty({ colors, text, icon }: { colors: any; text: string; icon: keyof typeof Ionicons.IconMap }) {
+export function Empty({ colors, text, icon }: { colors: any; text: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.center}>
       <Ionicons name={icon} size={36} color={colors.muted} />
