@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import React, { useEffect } from "react";
@@ -10,6 +10,7 @@ import { PlaybackService, setupPlayer } from "@/lib/player";
 import { useLibraryStore } from "@/store/library";
 import { useDownloadsStore } from "@/lib/downloads";
 import TrackMenu from "@/components/TrackMenu";
+import MiniPlayer from "@/components/MiniPlayer";
 import { ThemeProvider as MusicoThemeProvider } from "@/components/Theme";
 
 // Register the RNTP playback service (also runs in the headless context)
@@ -22,6 +23,8 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const theme = useLibraryStore((s) => (s.ready ? s.theme : colorScheme === "light" ? "light" : "dark"));
+  const pathname = usePathname();
+  const showMiniPlayer = pathname !== "/player" && !pathname.startsWith("/player/");
 
   useEffect(() => {
     (async () => {
@@ -61,6 +64,7 @@ export default function RootLayout() {
               <Stack.Screen name="downloads" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
             </Stack>
             <TrackMenu />
+            {showMiniPlayer && <MiniPlayer />}
           </View>
         </ThemeProvider>
       </MusicoThemeProvider>

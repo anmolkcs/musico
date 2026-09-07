@@ -3,7 +3,6 @@ import React from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import MiniPlayer from "@/components/MiniPlayer";
 import { useTheme } from "@/components/Theme";
 
 function TabBarBackground() {
@@ -72,7 +71,6 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      <MiniPlayer />
     </View>
   );
 }
