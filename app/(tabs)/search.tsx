@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SongRow from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";
@@ -27,6 +28,7 @@ type Filter = (typeof FILTERS)[number]["key"];
 
 export default function SearchScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("songs");
@@ -153,9 +155,19 @@ export default function SearchScreen() {
               <SongRow
                 song={item}
                 showArtist={item.type === "album"}
-                onPress={() => {}}
+                onPress={
+                  item.type === "artist"
+                    ? () =>
+                        router.push({
+                          pathname: "/library/artist",
+                          params: { name: item.title },
+                        })
+                    : undefined
+                }
                 trailing={
-                  <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginRight: 8 }} />
+                  item.type === "artist" ? (
+                    <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginRight: 8 }} />
+                  ) : undefined
                 }
               />
             ) : (

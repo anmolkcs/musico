@@ -6,6 +6,7 @@ import {
   getArtists,
   getAllTracks,
   getDownloadedTracks,
+  getHistoryCount,
   getLikedTracks,
   getPlaylists,
   getRecentTracks,
@@ -19,16 +20,17 @@ import { Playlist, Song, TrackRecord } from "../lib/types";
 
 type LibraryState = {
   ready: boolean;
-  theme: "dark" | "light";
+  theme: "dark" | "light" | null; // null = follow the system setting
   songs: TrackRecord[];
   liked: TrackRecord[];
   recent: TrackRecord[];
   playlists: Playlist[];
   artists: { name: string; count: number }[];
   downloads: TrackRecord[];
+  historyCount: number;
   hydrate: () => Promise<void>;
   refresh: () => Promise<void>;
-  toggleTheme: () => Promise<void>;
+  toggleTheme: (current: "dark" | "light") => Promise<void>;
   like: (song: Song, liked: boolean) => Promise<void>;
   newPlaylist: (name: string) => Promise<number>;
   rename: (id: number, name: string) => Promise<void>;
@@ -37,30 +39,33 @@ type LibraryState = {
 
 async function loadAll() {
   const db = await openDb();
-  const [songs, liked, recent, playlists, artists, downloads] = await Promise.all([
+  const [songs, liked, recent, playlists, artists, downloads, historyCount] = await Promise.all([
     getAllTracks(db),
     getLikedTracks(db),
     getRecentTracks(db, 24),
     getPlaylists(db),
     getArtists(db),
     getDownloadedTracks(db),
+    getHistoryCount(db),
   ]);
-  return { songs, liked, recent, playlists, artists, downloads };
+  return { songs, liked, recent, playlists, artists, downloads, historyCount };
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   ready: false,
-  theme: "dark",
+  theme: null,
   songs: [],
   liked: [],
   recent: [],
   playlists: [],
   artists: [],
   downloads: [],
+  historyCount: 0,
 
   hydrate: async () => {
     const db = await openDb();
-    const theme = (await getSetting(db, "theme")) === "light" ? "light" : "dark";
+    const stored = await getSetting(db, "theme");
+    const theme = stored === "light" || stored === "dark" ? stored : null;
     const data = await loadAll();
     set({ ready: true, theme, ...data });
   },
@@ -70,8 +75,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set(data);
   },
 
-  toggleTheme: async () => {
-    const next = get().theme === "dark" ? "light" : "dark";
+  toggleTheme: async (current) => {
+    const next = current === "dark" ? "light" : "dark";
     set({ theme: next });
     const db = await openDb();
     await setSetting(db, "theme", next);

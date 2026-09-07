@@ -17,7 +17,7 @@ export default function LibraryScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { songs, liked, playlists, artists, downloads } = useLibraryStore();
+  const { songs, liked, playlists, artists, downloads, historyCount } = useLibraryStore();
 
   const rows: Row[] = [
     { icon: "musical-notes", label: "Songs", count: songs.length, route: "/library/songs" },
@@ -25,7 +25,7 @@ export default function LibraryScreen() {
     { icon: "list", label: "Playlists", count: playlists.length, route: "/library/playlists" },
     { icon: "person", label: "Artists", count: artists.length, route: "/library/artists" },
     { icon: "download", label: "Downloads", count: downloads.length, route: "/downloads" },
-    { icon: "time", label: "History", count: 0, route: "/library/history" },
+    { icon: "time", label: "History", count: historyCount, route: "/library/history" },
   ];
 
   return (
@@ -46,9 +46,7 @@ export default function LibraryScreen() {
             >
               <Ionicons name={row.icon} size={26} color={colors.accent} />
               <Text style={[styles.tileLabel, { color: colors.text }]}>{row.label}</Text>
-              <Text style={[styles.tileCount, { color: colors.muted }]}>
-                {row.label === "History" ? "" : `${row.count}`}
-              </Text>
+              <Text style={[styles.tileCount, { color: colors.muted }]}>{row.count}</Text>
             </Pressable>
           ))}
         </View>

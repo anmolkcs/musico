@@ -4,13 +4,14 @@ import TrackPlayer, {
   Event,
   State,
 } from "react-native-track-player";
+import * as FileSystem from "expo-file-system/legacy";
 import YtCore from "../modules/yt-core";
 import { artworkFor, Song } from "./types";
-import { getTrack, recordPlay } from "./db";
-import { openDb } from "./db";
+import { getTrack, recordPlay, openDb } from "./db";
 import { currentSong, useQueueStore } from "../store/queue";
 import { useLibraryStore } from "../store/library";
-import { StreamResult } from "../modules/yt-core";
+import { nextIndex, prevIndex } from "./queue-logic";
+import type { StreamResult } from "../modules/yt-core";
 
 let playerReady = false;
 
@@ -43,19 +44,47 @@ export async function setupPlayer(): Promise<boolean> {
   return true;
 }
 
-// ---- Stream resolution (cached, deduped) ----
+// ---- Stream resolution (TTL cache, deduped, bounded) ----
 
-const streamCache = new Map<string, StreamResult>();
+const STREAM_TTL_MS = 45 * 60 * 1000; // YouTube stream URLs stay valid ~6h; refresh well before
+const STREAM_CACHE_MAX = 40;
+
+const streamCache = new Map<string, { result: StreamResult; at: number }>();
 const pendingResolves = new Map<string, Promise<StreamResult>>();
 
-export async function resolveStream(videoId: string): Promise<StreamResult> {
-  const cached = streamCache.get(videoId);
-  if (cached && cached.streamUrl) return cached;
+function cacheGet(videoId: string): StreamResult | null {
+  const entry = streamCache.get(videoId);
+  if (!entry) return null;
+  if (Date.now() - entry.at > STREAM_TTL_MS) {
+    streamCache.delete(videoId);
+    return null;
+  }
+  return entry.result;
+}
+
+function cachePut(videoId: string, result: StreamResult) {
+  if (streamCache.size >= STREAM_CACHE_MAX) {
+    // evict the oldest entry
+    const oldest = [...streamCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) streamCache.delete(oldest[0]);
+  }
+  streamCache.set(videoId, { result, at: Date.now() });
+}
+
+export function invalidateStream(videoId: string) {
+  streamCache.delete(videoId);
+}
+
+export async function resolveStream(videoId: string, { force = false } = {}): Promise<StreamResult> {
+  if (!force) {
+    const cached = cacheGet(videoId);
+    if (cached && cached.streamUrl) return cached;
+  }
   const pending = pendingResolves.get(videoId);
   if (pending) return pending;
   const p = YtCore.getStream(videoId)
     .then((result) => {
-      if (result.streamUrl) streamCache.set(videoId, result);
+      if (result.streamUrl) cachePut(videoId, result);
       return result;
     })
     .finally(() => pendingResolves.delete(videoId));
@@ -67,7 +96,11 @@ async function getPlayableUrl(song: Song): Promise<{ url: string; format: string
   const db = await openDb();
   const track = await getTrack(db, song.id);
   if (track?.downloadStatus === 2 && track.localPath) {
-    return { url: track.localPath, format: "local" };
+    // only trust the local file while it actually exists; otherwise stream
+    try {
+      const info = await FileSystem.getInfoAsync(track.localPath);
+      if (info.exists) return { url: track.localPath, format: "local" };
+    } catch {}
   }
   const stream = await resolveStream(song.id);
   if (!stream.streamUrl) throw new Error("No playable audio stream for this track");
@@ -76,26 +109,9 @@ async function getPlayableUrl(song: Song): Promise<{ url: string; format: string
 
 // ---- Queue engine ----
 
-function nextIndexFor(auto: boolean): number {
+function queueInput() {
   const { songs, index, shuffle, repeat } = useQueueStore.getState();
-  if (songs.length === 0) return -1;
-  if (shuffle && songs.length > 1) {
-    let next = index;
-    while (next === index) next = Math.floor(Math.random() * songs.length);
-    return next;
-  }
-  if (index + 1 < songs.length) return index + 1;
-  // end of queue
-  if (repeat === "queue") return 0;
-  if (repeat === "off" && auto) return -1;
-  return index; // manual next at end without queue repeat: restart current
-}
-
-function prevIndexFor(): number {
-  const { songs, index } = useQueueStore.getState();
-  if (songs.length === 0) return -1;
-  if (index - 1 >= 0) return index - 1;
-  return songs.length - 1;
+  return { length: songs.length, index, shuffle, repeat };
 }
 
 function trackObject(song: Song, url: string, duration: number) {
@@ -110,6 +126,8 @@ function trackObject(song: Song, url: string, duration: number) {
 }
 
 let loadSeq = 0;
+// One-shot retry bookkeeping for playback errors, keyed by video id
+const errorRetried = new Set<string>();
 
 export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}) {
   const { autoPlay = true } = opts;
@@ -132,11 +150,8 @@ export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}
     if (seq !== loadSeq) return;
     await TrackPlayer.add([trackObject(song, url, duration)]);
     if (autoPlay) await TrackPlayer.play();
-    // history bookkeeping
-    openDb()
-      .then((db) => recordPlay(db, song).catch(() => {}))
-      .then(() => useLibraryStore.getState().refresh().catch(() => {}))
-      .catch(() => {});
+    // a fresh load of this track can count as a play again once confirmed
+    recordedTrackIds.delete(song.id);
   } catch (e) {
     if (seq !== loadSeq) return;
     console.warn("loadIndex failed", song.id, e);
@@ -146,6 +161,7 @@ export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}
 
 export async function playQueue(songs: Song[], startIndex: number, sourceName: string) {
   useQueueStore.getState().setQueue(songs, startIndex, sourceName);
+  errorRetried.clear();
   await loadIndex(startIndex);
 }
 
@@ -154,7 +170,7 @@ export async function playSingle(song: Song, sourceName = "song") {
 }
 
 export async function playNext(auto = false) {
-  const idx = nextIndexFor(auto);
+  const idx = nextIndex(queueInput(), auto);
   if (idx < 0) {
     await TrackPlayer.pause();
     return;
@@ -162,12 +178,10 @@ export async function playNext(auto = false) {
   try {
     await loadIndex(idx);
   } catch {
-    // Try to skip past broken tracks, bounded to queue length
-    const { songs } = useQueueStore.getState();
+    // Skip past broken tracks, bounded so we don't spin through the whole queue
     let attempts = 0;
-    let cur = idx;
-    while (attempts < Math.min(songs.length, 5)) {
-      cur = nextIndexFor(true);
+    while (attempts < 5) {
+      const cur = nextIndex(queueInput(), true);
       if (cur < 0) break;
       try {
         await loadIndex(cur);
@@ -185,7 +199,7 @@ export async function playPrevious() {
     await TrackPlayer.seekTo(0);
     return;
   }
-  const idx = prevIndexFor();
+  const idx = prevIndex(queueInput());
   if (idx < 0) return;
   try {
     await loadIndex(idx);
@@ -217,25 +231,57 @@ export async function togglePlayPause() {
   }
 }
 
-export async function playFromStart() {
-  const song = currentSong();
-  if (!song) return;
+// ---- Play accounting ----
+// A play is counted after 10s of confirmed playback progress (not on load),
+// and the library store refresh is throttled.
+
+const PLAY_THRESHOLD_SECONDS = 10;
+const recordedTrackIds = new Set<string>();
+let lastLibraryRefresh = 0;
+
+function throttleRefresh() {
+  const now = Date.now();
+  if (now - lastLibraryRefresh < 20_000) return;
+  lastLibraryRefresh = now;
+  useLibraryStore.getState().refresh().catch(() => {});
+}
+
+async function recordConfirmedPlay(song: Song) {
+  if (recordedTrackIds.has(song.id)) return;
+  recordedTrackIds.add(song.id);
   try {
-    await loadIndex(useQueueStore.getState().index);
+    const db = await openDb();
+    await recordPlay(db, song);
+    throttleRefresh();
   } catch {}
 }
 
-// Prefetch the next stream URL so skips feel instant
+// Prefetch the next stream URL (shuffle-aware) so skips feel instant
 export function prefetchNext() {
   const { songs, index, shuffle, repeat } = useQueueStore.getState();
   if (songs.length < 2) return;
-  let next = index + 1;
-  if (next >= songs.length) {
-    if (repeat === "queue") next = 0;
-    else return;
-  }
+  const next = nextIndex({ length: songs.length, index, shuffle, repeat }, true);
+  if (next < 0) return;
   const song = songs[next];
   if (song) resolveStream(song.id).catch(() => {});
+}
+
+// ---- Playback error recovery ----
+
+async function handlePlaybackError() {
+  const song = currentSong();
+  if (!song) return;
+  invalidateStream(song.id);
+  if (!errorRetried.has(song.id)) {
+    // First failure for this track: re-resolve with a fresh URL and retry once
+    errorRetried.add(song.id);
+    try {
+      await loadIndex(useQueueStore.getState().index);
+      return;
+    } catch {}
+  }
+  // Already retried (or reload failed): move on
+  await playNext(true);
 }
 
 // ---- Playback service (registered in root layout) ----
@@ -253,7 +299,7 @@ export async function PlaybackService() {
       await TrackPlayer.pause();
     }
   });
-  TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async (event) => {
+  TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
     const { repeat } = useQueueStore.getState();
     const song = currentSong();
     if (!song) return;
@@ -265,5 +311,19 @@ export async function PlaybackService() {
   });
   TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
     prefetchNext();
+  });
+  TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async (event) => {
+    if (event.position >= PLAY_THRESHOLD_SECONDS) {
+      const song = currentSong();
+      if (song) await recordConfirmedPlay(song);
+    }
+  });
+  TrackPlayer.addEventListener(Event.PlaybackError, async (event) => {
+    console.warn("playback error", event.code, event.message);
+    await handlePlaybackError();
+  });
+  TrackPlayer.addEventListener(Event.PlayerError, async (event: any) => {
+    console.warn("player error", event?.code, event?.message);
+    await handlePlaybackError();
   });
 }

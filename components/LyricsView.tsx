@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import TrackPlayer, { usePlaybackState, useProgress, State } from "react-native-track-player";
-import { getLyrics, LyricLine } from "../lib/lyrics";
+import TrackPlayer, { useProgress } from "react-native-track-player";
+import { getLyrics } from "../lib/lyrics";
+import { activeLineIndex, LyricLine } from "../lib/lrc";
 import { Song } from "../lib/types";
 import { useTheme } from "./Theme";
 
@@ -20,7 +21,6 @@ export default function LyricsView({ song }: Props) {
   const lastAutoIndex = useRef(-1);
 
   const { position } = useProgress(250);
-  const playbackState = usePlaybackState();
 
   useEffect(() => {
     let alive = true;
@@ -43,15 +43,10 @@ export default function LyricsView({ song }: Props) {
     };
   }, [song.id]);
 
-  const activeIndex = useMemo(() => {
-    if (!lyrics || lyrics.length === 0) return -1;
-    let idx = -1;
-    for (let i = 0; i < lyrics.length; i++) {
-      if (lyrics[i].time <= position + 0.35) idx = i;
-      else break;
-    }
-    return idx;
-  }, [lyrics, position]);
+  const activeIndex = useMemo(
+    () => (lyrics ? activeLineIndex(lyrics, position) : -1),
+    [lyrics, position]
+  );
 
   useEffect(() => {
     if (!lyrics || activeIndex < 0 || userScrolling.current) return;

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -15,7 +15,6 @@ import { useTrackMenu } from "@/store/menu";
 export default function PlaylistScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const refreshLibrary = useLibraryStore((s) => s.refresh);
   const openMenu = useTrackMenu((s) => s.open);
   const [name, setName] = useState("Playlist");

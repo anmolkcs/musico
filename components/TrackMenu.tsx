@@ -7,7 +7,7 @@ import { useTrackMenu } from "../store/menu";
 import { useLibraryStore } from "../store/library";
 import { useQueueStore } from "../store/queue";
 import { useDownloadsStore } from "../lib/downloads";
-import { openDb, upsertTrack } from "../lib/db";
+import { addTrackToPlaylist, openDb, upsertTrack } from "../lib/db";
 
 type Option = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -113,26 +113,33 @@ export default function TrackMenu() {
   const handleNewPlaylist = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const id = await newPlaylist(trimmed);
-    const db = await openDb();
-    await upsertTrack(db, song);
-    const { addTrackToPlaylist } = await import("../lib/db");
-    await addTrackToPlaylist(db, id, song);
-    setName("");
-    setMode("options");
-    close();
-    Alert.alert("Added", `Added to "${trimmed}"`);
+    try {
+      const id = await newPlaylist(trimmed);
+      const db = await openDb();
+      await upsertTrack(db, song);
+      await addTrackToPlaylist(db, id, song);
+      await useLibraryStore.getState().refresh();
+      setName("");
+      setMode("options");
+      close();
+      Alert.alert("Added", `Added to "${trimmed}"`);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Could not create the playlist");
+    }
   };
 
   const addToPlaylist = async (playlistId: number, playlistName: string) => {
-    const db = await openDb();
-    await upsertTrack(db, song);
-    const { addTrackToPlaylist } = await import("../lib/db");
-    await addTrackToPlaylist(db, playlistId, song);
-    await useLibraryStore.getState().refresh();
-    setMode("options");
-    close();
-    Alert.alert("Added", `Added to "${playlistName}"`);
+    try {
+      const db = await openDb();
+      await upsertTrack(db, song);
+      await addTrackToPlaylist(db, playlistId, song);
+      await useLibraryStore.getState().refresh();
+      setMode("options");
+      close();
+      Alert.alert("Added", `Added to "${playlistName}"`);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Could not add to the playlist");
+    }
   };
 
   return (

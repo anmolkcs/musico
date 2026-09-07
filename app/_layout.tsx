@@ -1,7 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -11,7 +10,7 @@ import { useLibraryStore } from "@/store/library";
 import { useDownloadsStore } from "@/lib/downloads";
 import TrackMenu from "@/components/TrackMenu";
 import MiniPlayer from "@/components/MiniPlayer";
-import { ThemeProvider as MusicoThemeProvider } from "@/components/Theme";
+import { ThemeProvider as MusicoThemeProvider, useEffectiveThemeMode } from "@/components/Theme";
 
 // Register the RNTP playback service (also runs in the headless context)
 TrackPlayer.registerPlaybackService(() => PlaybackService);
@@ -21,8 +20,7 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const theme = useLibraryStore((s) => (s.ready ? s.theme : colorScheme === "light" ? "light" : "dark"));
+  const theme = useEffectiveThemeMode();
   const pathname = usePathname();
   const showMiniPlayer = pathname !== "/player" && !pathname.startsWith("/player/");
 

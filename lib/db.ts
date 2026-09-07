@@ -1,10 +1,15 @@
 import * as SQLite from "expo-sqlite";
 import { artworkFor, Playlist, Song, TrackRecord } from "./types";
 
-let dbInstance: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function openDb(): Promise<SQLite.SQLiteDatabase> {
-  if (dbInstance) return dbInstance;
+/** Opens (once) and migrates the database; concurrent callers share the promise. */
+export function openDb(): Promise<SQLite.SQLiteDatabase> {
+  if (!dbPromise) dbPromise = initDb();
+  return dbPromise;
+}
+
+async function initDb(): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync("musico.db");
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -50,7 +55,6 @@ export async function openDb(): Promise<SQLite.SQLiteDatabase> {
     );
     CREATE INDEX IF NOT EXISTS idx_history_playedAt ON history (playedAt DESC);
   `);
-  dbInstance = db;
   return db;
 }
 
@@ -130,6 +134,11 @@ export async function getRecentTracks(db: SQLite.SQLiteDatabase, limit = 24): Pr
     limit
   );
   return rows.map(rowToTrack);
+}
+
+export async function getHistoryCount(db: SQLite.SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) AS count FROM history`);
+  return row?.count ?? 0;
 }
 
 export async function getHistoryEntries(
@@ -254,6 +263,15 @@ export async function getCachedLyrics(
     trackId
   );
   return row ?? null;
+}
+
+/** Age in ms of the cached lyrics row (null when uncached). */
+export async function getLyricsCacheAge(db: SQLite.SQLiteDatabase, trackId: string): Promise<number | null> {
+  const row = await db.getFirstAsync<{ fetchedAt: number }>(
+    `SELECT fetchedAt FROM lyrics WHERE trackId = ?`,
+    trackId
+  );
+  return row ? Date.now() - row.fetchedAt : null;
 }
 
 // ---- Settings ----

@@ -30,6 +30,10 @@ export default function PlayerScreen() {
   const [spinning, setSpinning] = useState(false);
   const [volume, setVolumeState] = useState(0.8);
 
+  React.useEffect(() => {
+    TrackPlayer.getVolume().then(setVolumeState).catch(() => {});
+  }, []);
+
   const playing = playbackState?.state === State.Playing || playbackState?.state === State.Buffering;
 
   // swipe-down to dismiss
@@ -164,11 +168,7 @@ export default function PlayerScreen() {
               <Ionicons name="play-skip-forward" size={34} color={colors.text} />
             </Pressable>
             <Pressable hitSlop={12} onPress={cycleRepeat}>
-              <Ionicons
-                name={repeat === "track" ? "repeat" : "repeat"}
-                size={24}
-                color={repeat !== "off" ? colors.accent : colors.muted}
-              />
+              <Ionicons name="repeat" size={24} color={repeat !== "off" ? colors.accent : colors.muted} />
               {repeat === "track" && <View style={[styles.repeatOne, { backgroundColor: colors.accent }]} />}
             </Pressable>
           </View>

@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { useColorScheme } from "react-native";
 import { useLibraryStore } from "../store/library";
 import { ThemeColors, themeFor } from "../lib/theme";
 
@@ -12,9 +13,15 @@ const ThemeContext = createContext<ThemeContextValue>({
   colors: themeFor("dark"),
 });
 
+/** Effective theme: explicit user choice if set, otherwise the OS setting. */
+export function useEffectiveThemeMode(): "dark" | "light" {
+  const stored = useLibraryStore((s) => s.theme);
+  const osScheme = useColorScheme();
+  return stored ?? (osScheme === "light" ? "light" : "dark");
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Persisted user choice from the library store; dark until hydrated.
-  const mode = useLibraryStore((s) => s.theme);
+  const mode = useEffectiveThemeMode();
   return <ThemeContext.Provider value={{ mode, colors: themeFor(mode) }}>{children}</ThemeContext.Provider>;
 }
 

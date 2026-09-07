@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { Alert } from "react-native";
 import React, { useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,11 +22,10 @@ const STATIONS: { title: string; query: string; colors: [string, string, string]
 ];
 
 export default function HomeScreen() {
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
   const insets = useSafeAreaInsets();
   const recent = useLibraryStore((s) => s.recent);
   const toggleTheme = useLibraryStore((s) => s.toggleTheme);
-  const theme = useLibraryStore((s) => s.theme);
   const [loadingStation, setLoadingStation] = useState<string | null>(null);
 
   const playStation = async (station: (typeof STATIONS)[number]) => {
@@ -38,9 +38,11 @@ export default function HomeScreen() {
         .map((i) => ({ id: i.id, title: i.title, artist: i.artist, duration: i.duration, thumbnail: i.thumbnail }));
       if (songs.length > 0) {
         await playQueue(songs, 0, station.title);
+      } else {
+        Alert.alert("No songs found", `Couldn't find songs for "${station.title}". Try again later.`);
       }
-    } catch (e) {
-      console.warn("station failed", e);
+    } catch (e: any) {
+      Alert.alert("Station unavailable", e?.message ?? "Could not load this station. Check your connection.");
     } finally {
       setLoadingStation(null);
     }
@@ -67,8 +69,8 @@ export default function HomeScreen() {
           <Text style={[styles.brand, { color: colors.text }]}>
             musico<Text style={{ color: colors.accent }}>.</Text>
           </Text>
-          <Pressable onPress={toggleTheme} style={styles.themeBtn} hitSlop={8}>
-            <Ionicons name={theme === "dark" ? "sunny" : "moon"} size={22} color={colors.muted} />
+          <Pressable onPress={() => toggleTheme(mode)} style={styles.themeBtn} hitSlop={8}>
+            <Ionicons name={mode === "dark" ? "sunny" : "moon"} size={22} color={colors.muted} />
           </Pressable>
         </View>
 

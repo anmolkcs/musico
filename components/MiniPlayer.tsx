@@ -9,8 +9,6 @@ import { artworkFor } from "../lib/types";
 import { playNext, togglePlayPause } from "../lib/player";
 import { useTheme } from "./Theme";
 
-export const MINIPLAYER_OVERLAY_HEIGHT = 64;
-
 export default function MiniPlayer() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();

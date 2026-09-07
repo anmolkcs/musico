@@ -1,28 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import Artwork from "@/components/Artwork";
 import ScreenHeader from "@/components/ScreenHeader";
 import { useTheme } from "@/components/Theme";
-import { getDownloadedTracks, openDb } from "@/lib/db";
+import { useLibraryStore } from "@/store/library";
 import { playQueue } from "@/lib/player";
-import { Song, TrackRecord } from "@/lib/types";
+import { Song } from "@/lib/types";
 import { useDownloadsStore } from "@/lib/downloads";
 
 export default function DownloadsScreen() {
   const { colors } = useTheme();
   const items = useDownloadsStore((s) => s.items);
   const { start, cancel, remove } = useDownloadsStore.getState();
-  const [downloaded, setDownloaded] = useState<TrackRecord[]>([]);
-
-  const reload = () => {
-    openDb()
-      .then((db) => getDownloadedTracks(db))
-      .then(setDownloaded)
-      .catch(() => {});
-  };
-
-  useEffect(reload, [items]);
+  const downloaded = useLibraryStore((s) => s.downloads);
+  useEffect(() => {
+    useLibraryStore.getState().refresh().catch(() => {});
+  }, []);
 
   const active = Object.values(items).filter((i) => i.status === "downloading" || i.status === "error");
   const done = downloaded.map((t) => ({
@@ -66,7 +60,7 @@ export default function DownloadsScreen() {
                 onRetry={() => start(row.data.song)}
               />
             ) : (
-              <DoneRow song={row.data} onPlay={() => play(row.index)} onDelete={() => remove(row.data.id).then(reload)} />
+              <DoneRow song={row.data} onPlay={() => play(row.index)} onDelete={() => remove(row.data.id)} />
             )
           }
         />
