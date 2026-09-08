@@ -1,72 +1,7 @@
-import * as SQLite from "expo-sqlite";
+import { MusicoDb, openDb } from "./sqlite";
 import { artworkFor, Playlist, Song, TrackRecord } from "./types";
 
-let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
-
-/** Opens (once) and migrates the database; concurrent callers share the promise. */
-export function openDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!dbPromise) dbPromise = initDb();
-  return dbPromise;
-}
-
-async function initDb(): Promise<SQLite.SQLiteDatabase> {
-  const db = await SQLite.openDatabaseAsync("musico.db");
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS tracks (
-      id TEXT PRIMARY KEY NOT NULL,
-      title TEXT NOT NULL,
-      artist TEXT NOT NULL DEFAULT '',
-      duration INTEGER NOT NULL DEFAULT 0,
-      thumbnail TEXT NOT NULL DEFAULT '',
-      liked INTEGER NOT NULL DEFAULT 0,
-      likedAt INTEGER,
-      playCount INTEGER NOT NULL DEFAULT 0,
-      lastPlayedAt INTEGER,
-      downloadStatus INTEGER NOT NULL DEFAULT 0,
-      localPath TEXT
-    );
-    CREATE TABLE IF NOT EXISTS playlists (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      createdAt INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS playlist_tracks (
-      playlistId INTEGER NOT NULL,
-      trackId TEXT NOT NULL,
-      position INTEGER NOT NULL,
-      addedAt INTEGER NOT NULL,
-      PRIMARY KEY (playlistId, trackId)
-    );
-    CREATE TABLE IF NOT EXISTS history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      trackId TEXT NOT NULL,
-      playedAt INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS lyrics (
-      trackId TEXT PRIMARY KEY NOT NULL,
-      synced TEXT,
-      plain TEXT,
-      fetchedAt INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT
-    );
-    CREATE TABLE IF NOT EXISTS artist_details (
-      name TEXT PRIMARY KEY NOT NULL,
-      data TEXT NOT NULL,
-      fetchedAt INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_history_playedAt ON history (playedAt DESC);
-  `);
-  const versionRow = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
-  const version = versionRow?.user_version ?? 0;
-  if (version < 1) {
-    await db.execAsync("PRAGMA user_version = 1");
-  }
-  return db;
-}
+export { openDb };
 
 function rowToTrack(row: any): TrackRecord {
   return {
@@ -84,7 +19,7 @@ function rowToTrack(row: any): TrackRecord {
   };
 }
 
-export async function upsertTrack(db: SQLite.SQLiteDatabase, song: Song) {
+export async function upsertTrack(db: MusicoDb, song: Song) {
   await db.runAsync(
     `INSERT INTO tracks (id, title, artist, duration, thumbnail)
      VALUES (?, ?, ?, ?, ?)
@@ -101,28 +36,28 @@ export async function upsertTrack(db: SQLite.SQLiteDatabase, song: Song) {
   );
 }
 
-export async function getAllTracks(db: SQLite.SQLiteDatabase): Promise<TrackRecord[]> {
+export async function getAllTracks(db: MusicoDb): Promise<TrackRecord[]> {
   const rows = await db.getAllAsync(
     `SELECT * FROM tracks ORDER BY COALESCE(lastPlayedAt, 0) DESC, title COLLATE NOCASE ASC`
   );
   return rows.map(rowToTrack);
 }
 
-export async function getLikedTracks(db: SQLite.SQLiteDatabase): Promise<TrackRecord[]> {
+export async function getLikedTracks(db: MusicoDb): Promise<TrackRecord[]> {
   const rows = await db.getAllAsync(`SELECT * FROM tracks WHERE liked = 1 ORDER BY likedAt DESC`);
   return rows.map(rowToTrack);
 }
 
-export async function getTrack(db: SQLite.SQLiteDatabase, id: string): Promise<TrackRecord | null> {
+export async function getTrack(db: MusicoDb, id: string): Promise<TrackRecord | null> {
   const row = await db.getFirstAsync(`SELECT * FROM tracks WHERE id = ?`, id);
   return row ? rowToTrack(row) : null;
 }
 
-export async function setLiked(db: SQLite.SQLiteDatabase, id: string, liked: boolean) {
+export async function setLiked(db: MusicoDb, id: string, liked: boolean) {
   await db.runAsync(`UPDATE tracks SET liked = ?, likedAt = ? WHERE id = ?`, liked ? 1 : 0, liked ? Date.now() : null, id);
 }
 
-export async function recordPlay(db: SQLite.SQLiteDatabase, song: Song) {
+export async function recordPlay(db: MusicoDb, song: Song) {
   await upsertTrack(db, song);
   const now = Date.now();
   await db.runAsync(
@@ -136,7 +71,7 @@ export async function recordPlay(db: SQLite.SQLiteDatabase, song: Song) {
   );
 }
 
-export async function getRecentTracks(db: SQLite.SQLiteDatabase, limit = 24): Promise<TrackRecord[]> {
+export async function getRecentTracks(db: MusicoDb, limit = 24): Promise<TrackRecord[]> {
   const rows = await db.getAllAsync(
     `SELECT t.* FROM tracks t
      WHERE t.lastPlayedAt IS NOT NULL
@@ -146,13 +81,13 @@ export async function getRecentTracks(db: SQLite.SQLiteDatabase, limit = 24): Pr
   return rows.map(rowToTrack);
 }
 
-export async function getHistoryCount(db: SQLite.SQLiteDatabase): Promise<number> {
+export async function getHistoryCount(db: MusicoDb): Promise<number> {
   const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) AS count FROM history`);
   return row?.count ?? 0;
 }
 
 export async function getHistoryEntries(
-  db: SQLite.SQLiteDatabase,
+  db: MusicoDb,
   limit = 100
 ): Promise<{ track: TrackRecord; playedAt: number }[]> {
   const rows = await db.getAllAsync(
@@ -163,13 +98,13 @@ export async function getHistoryEntries(
   return rows.map((row: any) => ({ track: rowToTrack(row), playedAt: row.playedAt }));
 }
 
-export async function clearHistory(db: SQLite.SQLiteDatabase) {
+export async function clearHistory(db: MusicoDb) {
   await db.runAsync(`DELETE FROM history`);
 }
 
 // ---- Playlists ----
 
-export async function getPlaylists(db: SQLite.SQLiteDatabase): Promise<Playlist[]> {
+export async function getPlaylists(db: MusicoDb): Promise<Playlist[]> {
   const rows = await db.getAllAsync<{ id: number; name: string; createdAt: number; count: number }>(
     `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count
      FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
@@ -178,21 +113,21 @@ export async function getPlaylists(db: SQLite.SQLiteDatabase): Promise<Playlist[
   return rows;
 }
 
-export async function createPlaylist(db: SQLite.SQLiteDatabase, name: string): Promise<number> {
+export async function createPlaylist(db: MusicoDb, name: string): Promise<number> {
   const result = await db.runAsync(`INSERT INTO playlists (name, createdAt) VALUES (?, ?)`, name, Date.now());
   return result.lastInsertRowId;
 }
 
-export async function renamePlaylist(db: SQLite.SQLiteDatabase, id: number, name: string) {
+export async function renamePlaylist(db: MusicoDb, id: number, name: string) {
   await db.runAsync(`UPDATE playlists SET name = ? WHERE id = ?`, name, id);
 }
 
-export async function deletePlaylist(db: SQLite.SQLiteDatabase, id: number) {
+export async function deletePlaylist(db: MusicoDb, id: number) {
   await db.runAsync(`DELETE FROM playlists WHERE id = ?`, id);
   await db.runAsync(`DELETE FROM playlist_tracks WHERE playlistId = ?`, id);
 }
 
-export async function addTrackToPlaylist(db: SQLite.SQLiteDatabase, playlistId: number, song: Song) {
+export async function addTrackToPlaylist(db: MusicoDb, playlistId: number, song: Song) {
   await upsertTrack(db, song);
   const row = await db.getFirstAsync<{ maxPos: number | null }>(
     `SELECT MAX(position) AS maxPos FROM playlist_tracks WHERE playlistId = ?`,
@@ -208,11 +143,11 @@ export async function addTrackToPlaylist(db: SQLite.SQLiteDatabase, playlistId: 
   );
 }
 
-export async function removeTrackFromPlaylist(db: SQLite.SQLiteDatabase, playlistId: number, trackId: string) {
+export async function removeTrackFromPlaylist(db: MusicoDb, playlistId: number, trackId: string) {
   await db.runAsync(`DELETE FROM playlist_tracks WHERE playlistId = ? AND trackId = ?`, playlistId, trackId);
 }
 
-export async function getPlaylist(db: SQLite.SQLiteDatabase, id: number): Promise<Playlist | null> {
+export async function getPlaylist(db: MusicoDb, id: number): Promise<Playlist | null> {
   const row = await db.getFirstAsync<{ id: number; name: string; createdAt: number; count: number }>(
     `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count
      FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
@@ -222,7 +157,7 @@ export async function getPlaylist(db: SQLite.SQLiteDatabase, id: number): Promis
   return row ?? null;
 }
 
-export async function getPlaylistTracks(db: SQLite.SQLiteDatabase, id: number): Promise<TrackRecord[]> {
+export async function getPlaylistTracks(db: MusicoDb, id: number): Promise<TrackRecord[]> {
   const rows = await db.getAllAsync(
     `SELECT t.* FROM playlist_tracks pt JOIN tracks t ON t.id = pt.trackId
      WHERE pt.playlistId = ? ORDER BY pt.position ASC`,
@@ -234,7 +169,7 @@ export async function getPlaylistTracks(db: SQLite.SQLiteDatabase, id: number): 
 // ---- Downloads ----
 
 export async function setDownloadStatus(
-  db: SQLite.SQLiteDatabase,
+  db: MusicoDb,
   id: string,
   status: 0 | 1 | 2,
   localPath: string | null = null
@@ -242,7 +177,7 @@ export async function setDownloadStatus(
   await db.runAsync(`UPDATE tracks SET downloadStatus = ?, localPath = ? WHERE id = ?`, status, localPath, id);
 }
 
-export async function getDownloadedTracks(db: SQLite.SQLiteDatabase): Promise<TrackRecord[]> {
+export async function getDownloadedTracks(db: MusicoDb): Promise<TrackRecord[]> {
   const rows = await db.getAllAsync(`SELECT * FROM tracks WHERE downloadStatus = 2 ORDER BY title COLLATE NOCASE`);
   return rows.map(rowToTrack);
 }
@@ -250,7 +185,7 @@ export async function getDownloadedTracks(db: SQLite.SQLiteDatabase): Promise<Tr
 // ---- Lyrics cache ----
 
 export async function saveLyrics(
-  db: SQLite.SQLiteDatabase,
+  db: MusicoDb,
   trackId: string,
   synced: string | null,
   plain: string | null
@@ -265,7 +200,7 @@ export async function saveLyrics(
 }
 
 export async function getCachedLyrics(
-  db: SQLite.SQLiteDatabase,
+  db: MusicoDb,
   trackId: string
 ): Promise<{ synced: string | null; plain: string | null } | null> {
   const row = await db.getFirstAsync<{ synced: string | null; plain: string | null }>(
@@ -276,7 +211,7 @@ export async function getCachedLyrics(
 }
 
 /** Age in ms of the cached lyrics row (null when uncached). */
-export async function getLyricsCacheAge(db: SQLite.SQLiteDatabase, trackId: string): Promise<number | null> {
+export async function getLyricsCacheAge(db: MusicoDb, trackId: string): Promise<number | null> {
   const row = await db.getFirstAsync<{ fetchedAt: number }>(
     `SELECT fetchedAt FROM lyrics WHERE trackId = ?`,
     trackId
@@ -286,17 +221,17 @@ export async function getLyricsCacheAge(db: SQLite.SQLiteDatabase, trackId: stri
 
 // ---- Settings ----
 
-export async function getSetting(db: SQLite.SQLiteDatabase, key: string): Promise<string | null> {
+export async function getSetting(db: MusicoDb, key: string): Promise<string | null> {
   const row = await db.getFirstAsync<{ value: string | null }>(`SELECT value FROM settings WHERE key = ?`, key);
   return row?.value ?? null;
 }
 
-export async function setSetting(db: SQLite.SQLiteDatabase, key: string, value: string) {
+export async function setSetting(db: MusicoDb, key: string, value: string) {
   await db.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, key, value);
 }
 
 export async function getCachedArtistDetails(
-  db: SQLite.SQLiteDatabase,
+  db: MusicoDb,
   name: string
 ): Promise<{ data: string; fetchedAt: number } | null> {
   return db.getFirstAsync<{ data: string; fetchedAt: number }>(
@@ -305,7 +240,7 @@ export async function getCachedArtistDetails(
   );
 }
 
-export async function saveArtistDetails(db: SQLite.SQLiteDatabase, name: string, data: string) {
+export async function saveArtistDetails(db: MusicoDb, name: string, data: string) {
   await db.runAsync(
     `INSERT OR REPLACE INTO artist_details (name, data, fetchedAt) VALUES (?, ?, ?)`,
     name,
@@ -316,7 +251,7 @@ export async function saveArtistDetails(db: SQLite.SQLiteDatabase, name: string,
 
 // ---- Artists ----
 
-export async function getArtists(db: SQLite.SQLiteDatabase): Promise<{ name: string; count: number }[]> {
+export async function getArtists(db: MusicoDb): Promise<{ name: string; count: number }[]> {
   const rows = await db.getAllAsync<{ name: string; count: number }>(
     `SELECT artist AS name, COUNT(*) AS count FROM tracks
      WHERE artist != '' GROUP BY artist COLLATE NOCASE ORDER BY count DESC, name COLLATE NOCASE ASC`
@@ -324,7 +259,7 @@ export async function getArtists(db: SQLite.SQLiteDatabase): Promise<{ name: str
   return rows;
 }
 
-export async function getTracksByArtist(db: SQLite.SQLiteDatabase, name: string): Promise<TrackRecord[]> {
+export async function getTracksByArtist(db: MusicoDb, name: string): Promise<TrackRecord[]> {
   const rows = await db.getAllAsync(
     `SELECT * FROM tracks WHERE artist = ? COLLATE NOCASE ORDER BY playCount DESC, title COLLATE NOCASE`,
     name

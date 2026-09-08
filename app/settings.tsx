@@ -1,11 +1,74 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ScreenHeader from "@/components/ScreenHeader";
 import { useTheme } from "@/components/Theme";
 import { ACCENT_THEMES } from "@/lib/theme";
 import { useLibraryStore } from "@/store/library";
+
+const BACKEND_KEY = "musico.backend";
+
+function WebBackendCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
+  const [backend, setBackend] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    try {
+      setBackend(window.localStorage.getItem(BACKEND_KEY) ?? "");
+    } catch {}
+  }, []);
+
+  const save = () => {
+    try {
+      const trimmed = backend.trim();
+      if (trimmed) window.localStorage.setItem(BACKEND_KEY, trimmed);
+      else window.localStorage.removeItem(BACKEND_KEY);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch {}
+  };
+
+  return (
+    <>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Web backend</Text>
+      <Text style={[styles.sectionDescription, { color: colors.muted }]}>
+        Musico on web uses public Piped/Invidious instances for search and playback. Public instances
+        can be unreliable — pin your own Piped API URL here for consistent results. Leave empty for
+        automatic.
+      </Text>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.card, borderColor: colors.border },
+          styles.backendRow,
+        ]}
+      >
+        <TextInput
+          value={backend}
+          onChangeText={setBackend}
+          placeholder="https://pipedapi.example.org"
+          placeholderTextColor={colors.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={[styles.backendInput, { color: colors.text, borderColor: colors.border }]}
+          onSubmitEditing={save}
+        />
+        <Pressable
+          onPress={save}
+          style={({ pressed }) => [
+            styles.backendSave,
+            { backgroundColor: colors.accent },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={styles.backendSaveText}>{saved ? "Saved" : "Save"}</Text>
+        </Pressable>
+      </View>
+    </>
+  );
+}
 
 export default function SettingsScreen() {
   const { colors, mode } = useTheme();
@@ -77,6 +140,8 @@ export default function SettingsScreen() {
             <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
           </View>
         </View>
+
+        {Platform.OS === "web" && <WebBackendCard colors={colors} />}
       </ScrollView>
     </View>
   );
@@ -188,5 +253,28 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
+  },
+  backendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backendInput: {
+    flex: 1,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  backendSave: {
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginLeft: 10,
+  },
+  backendSaveText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

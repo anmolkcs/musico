@@ -3,7 +3,16 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, Alert, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import TrackPlayer, { State, usePlaybackState, useProgress } from "react-native-track-player";
@@ -17,6 +26,7 @@ import { useLibraryStore } from "@/store/library";
 export default function PlayerScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const router = useRouter();
   const playbackState = usePlaybackState();
   const { position, duration } = useProgress(500);
@@ -29,6 +39,7 @@ export default function PlayerScreen() {
   const [seeking, setSeeking] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [volume, setVolumeState] = useState(0.8);
+  const artworkSize = Math.min(Math.max(180, width - 64), Math.max(180, height * 0.42));
 
   React.useEffect(() => {
     TrackPlayer.getVolume().then(setVolumeState).catch(() => {});
@@ -111,7 +122,7 @@ export default function PlayerScreen() {
               <View style={styles.artWrap} pointerEvents="none">
                 <Image
                   source={{ uri: song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg` }}
-                  style={styles.art}
+                  style={[styles.art, { width: artworkSize, height: artworkSize }]}
                   contentFit="cover"
                   cachePolicy="memory-disk"
                   transition={200}
@@ -263,14 +274,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   artWrap: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 32,
+    paddingVertical: 12,
   },
   art: {
-    width: "100%",
-    aspectRatio: 1,
     borderRadius: 16,
     backgroundColor: "#2A2A33",
   },
