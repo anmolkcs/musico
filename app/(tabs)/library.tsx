@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/components/Theme";
 import { useLibraryStore } from "@/store/library";
@@ -16,6 +16,7 @@ type Row = {
 export default function LibraryScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const { songs, liked, playlists, artists, downloads, historyCount } = useLibraryStore();
 
@@ -27,6 +28,7 @@ export default function LibraryScreen() {
     { icon: "download", label: "Downloads", count: downloads.length, route: "/downloads" },
     { icon: "time", label: "History", count: historyCount, route: "/library/history" },
   ];
+  const tileSize = Math.min(160, Math.max(96, Math.floor((width - 56) / 3)));
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 8 }}>
@@ -50,7 +52,7 @@ export default function LibraryScreen() {
             <Pressable
               key={row.label}
               style={({ pressed }) => [
-                styles.tile,
+                [styles.tile, { width: tileSize, height: tileSize }],
                 { backgroundColor: colors.card, borderColor: colors.border },
                 pressed && { backgroundColor: colors.elevated, transform: [{ scale: 0.98 }] },
               ]}
@@ -127,9 +129,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   tile: {
-    width: "30.5%",
-    flexGrow: 1,
-    aspectRatio: 1,
+    flexGrow: 0,
+    flexShrink: 0,
     borderRadius: 16,
     borderWidth: 1,
     padding: 12,

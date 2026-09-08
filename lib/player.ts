@@ -1,16 +1,17 @@
+import { Platform } from "react-native";
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
   Event,
   State,
 } from "react-native-track-player";
-import * as FileSystem from "expo-file-system/legacy";
 import YtCore from "../modules/yt-core";
 import { artworkFor, Song } from "./types";
-import { getTrack, recordPlay, openDb, setDownloadStatus } from "./db";
+import { recordPlay, openDb } from "./db";
 import { currentSong, useQueueStore } from "../store/queue";
 import { useLibraryStore } from "../store/library";
 import { nextIndex, prevIndex } from "./queue-logic";
+import { getLocalPlayableUrl } from "./local-media";
 import type { StreamResult } from "../modules/yt-core";
 
 let playerReady = false;
@@ -94,16 +95,8 @@ export async function resolveStream(videoId: string, { force = false } = {}): Pr
 }
 
 async function getPlayableUrl(song: Song): Promise<{ url: string; format: string }> {
-  const db = await openDb();
-  const track = await getTrack(db, song.id);
-  if (track?.downloadStatus === 2 && track.localPath) {
-    // only trust the local file while it actually exists; otherwise stream
-    try {
-      const info = await FileSystem.getInfoAsync(track.localPath);
-      if (info.exists) return { url: track.localPath, format: "local" };
-      await setDownloadStatus(db, song.id, 0, null);
-    } catch {}
-  }
+  const local = await getLocalPlayableUrl(song.id);
+  if (local) return { url: local, format: "local" };
   const stream = await resolveStream(song.id);
   if (!stream.streamUrl) throw new Error("No playable audio stream for this track");
   return { url: stream.streamUrl, format: stream.format };
@@ -313,6 +306,11 @@ async function handlePlaybackError() {
 export async function PlaybackService() {
   if (playbackServiceRegistered) return;
   playbackServiceRegistered = true;
+  if (Platform.OS === "web") {
+    // OS media keys / browser media HUD (native uses Remote* events instead)
+    const { setupMediaSession } = await import("./web-media-session");
+    setupMediaSession();
+  }
   TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
   TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
   TrackPlayer.addEventListener(Event.RemoteNext, () => playNext(false));

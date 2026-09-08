@@ -27,6 +27,22 @@ npx expo start --dev-client        # Metro; app connects via adb reverse tcp:808
 A development build is required (not Expo Go) because of the native extraction module and
 react-native-track-player.
 
+The GitHub Actions Android artifact is a release-variant APK with the JavaScript bundle
+embedded, so it can be installed and launched without a connected ADB device or Metro server.
+
+### Web development
+
+The web build uses public Piped and Invidious instances for search and stream resolution.
+Start it with:
+
+```bash
+npx expo start --web
+```
+
+If the public instances are unavailable, open **Settings > Web backend** and enter a
+Piped API base URL. The value is stored locally in the browser and takes priority over
+the built-in Piped instance list.
+
 ### Waydroid testing
 
 ```bash
