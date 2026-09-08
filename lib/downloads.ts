@@ -19,8 +19,8 @@ export type DownloadInfo = {
 const downloadsDir = `${FileSystem.documentDirectory ?? ""}downloads/`;
 
 const resumables = new Map<string, FileSystem.DownloadResumable>();
-// Cancellation is signalled explicitly instead of by matching error strings
-const cancelled = new Set<string>();
+const attempts = new Map<string, number>();
+const cancelled = new Set<number>();
 
 type DownloadsState = {
   items: Record<string, DownloadInfo>;
@@ -39,13 +39,21 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
     const db = await openDb();
     await db.runAsync(`UPDATE tracks SET downloadStatus = 0 WHERE downloadStatus = 1`);
     try {
-      const doneIds = new Set(
-        (await db.getAllAsync<{ id: string }>(`SELECT id FROM tracks WHERE downloadStatus = 2`)).map((r) => r.id)
+      const doneRows = await db.getAllAsync<{ id: string; localPath: string | null }>(
+        `SELECT id, localPath FROM tracks WHERE downloadStatus = 2`
       );
+      const validDoneIds = new Set<string>();
+      for (const row of doneRows) {
+        if (row.localPath && (await FileSystem.getInfoAsync(row.localPath)).exists) {
+          validDoneIds.add(row.id);
+        } else {
+          await setDownloadStatus(db, row.id, 0, null);
+        }
+      }
       const files = await FileSystem.readDirectoryAsync(downloadsDir).catch(() => [] as string[]);
       await Promise.all(
         files
-          .filter((f) => !doneIds.has(f.replace(/\.[^.]+$/, "")))
+          .filter((f) => !validDoneIds.has(f.replace(/\.[^.]+$/, "")))
           .map((f) => FileSystem.deleteAsync(`${downloadsDir}${f}`, { idempotent: true }).catch(() => {}))
       );
     } catch {}
@@ -53,19 +61,28 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
 
   start: async (song) => {
     if (get().items[song.id]?.status === "downloading") return;
+    const attempt = (attempts.get(song.id) ?? 0) + 1;
+    attempts.set(song.id, attempt);
     set((state) => ({
       items: {
         ...state.items,
         [song.id]: { song, status: "downloading", progress: 0 },
       },
     }));
-    cancelled.delete(song.id);
+    cancelled.delete(attempt);
     const db = await openDb();
     let fileUri = `${downloadsDir}${song.id}.m4a`;
+    const assertCurrent = () => {
+      if (attempts.get(song.id) !== attempt || cancelled.has(attempt)) {
+        throw new Error("Download cancelled");
+      }
+    };
     try {
+      assertCurrent();
       await upsertTrack(db, song);
       await setDownloadStatus(db, song.id, 1);
       const stream = await resolveStream(song.id);
+      assertCurrent();
       if (!stream.streamUrl) throw new Error("Could not resolve audio stream");
       await FileSystem.makeDirectoryAsync(downloadsDir, { intermediates: true }).catch(() => {});
       fileUri = `${downloadsDir}${song.id}.${extFor(stream.format)}`;
@@ -91,6 +108,8 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
       );
       resumables.set(song.id, resumable);
       const result = await resumable.downloadAsync();
+      assertCurrent();
+      if (attempts.get(song.id) !== attempt) return;
       if (!result || (result.status !== 200 && result.status !== 206)) {
         throw new Error(`Download failed (HTTP ${result?.status ?? "unknown"})`);
       }
@@ -103,7 +122,8 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
       }));
       useLibraryStore.getState().refresh().catch(() => {});
     } catch (e: any) {
-      const wasCancelled = cancelled.has(song.id);
+      if (attempts.get(song.id) !== attempt) return;
+      const wasCancelled = cancelled.has(attempt);
       // never leave a partial file behind
       await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
       await setDownloadStatus(db, song.id, 0).catch(() => {});
@@ -121,13 +141,16 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
         };
       });
     } finally {
-      resumables.delete(song.id);
-      cancelled.delete(song.id);
+      if (attempts.get(song.id) === attempt) {
+        resumables.delete(song.id);
+        cancelled.delete(attempt);
+      }
     }
   },
 
   cancel: async (videoId) => {
-    cancelled.add(videoId);
+    const attempt = attempts.get(videoId);
+    if (attempt !== undefined) cancelled.add(attempt);
     const resumable = resumables.get(videoId);
     if (resumable) {
       await resumable.cancelAsync().catch(() => {});
@@ -143,9 +166,9 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => ({
   },
 
   remove: async (videoId) => {
+    const item = get().items[videoId];
     await get().cancel(videoId); // also stops an in-flight download
     const db = await openDb();
-    const item = get().items[videoId];
     if (item?.localPath) {
       await FileSystem.deleteAsync(item.localPath, { idempotent: true }).catch(() => {});
     } else {

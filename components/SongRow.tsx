@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import Artwork from "./Artwork";
 import { formatDuration, Song } from "../lib/types";
 import { playQueue } from "../lib/player";
@@ -34,11 +34,16 @@ export default function SongRow({
   const openMenu = useTrackMenu((s) => s.open);
   const size = dense ? 40 : 48;
 
-  const handlePress = onPress
-    ? onPress
-    : () => {
-        playQueue(queue && queue.length > 0 ? queue : [song], index ?? 0, sourceName ?? "queue").catch(() => {});
-      };
+  const handlePress = () => {
+    Keyboard.dismiss();
+    if (onPress) {
+      onPress();
+      return;
+    }
+    playQueue(queue && queue.length > 0 ? queue : [song], index ?? 0, sourceName ?? "queue").catch((e) => {
+      Alert.alert("Playback error", e instanceof Error ? e.message : "Could not play this song");
+    });
+  };
 
   const handleLongPress = onLongPress ?? (() => openMenu(song));
 
@@ -47,7 +52,13 @@ export default function SongRow({
       onPress={handlePress}
       onLongPress={handleLongPress}
       android_ripple={{ color: colors.border }}
-      style={[styles.row, { paddingHorizontal: dense ? 12 : 16 }]}
+      style={({ pressed }) => [
+        styles.row,
+        { paddingHorizontal: dense ? 12 : 16, borderBottomColor: colors.border },
+        pressed && { backgroundColor: colors.elevated },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${song.title}${song.artist ? ` by ${song.artist}` : ""}`}
     >
       <Artwork song={song} size={size} radius={dense ? 6 : 8} />
       <View style={styles.meta}>
@@ -80,12 +91,35 @@ export default function SongRow({
   );
 }
 
+export function SongRowSkeleton({ dense = false }: { dense?: boolean }) {
+  const { colors } = useTheme();
+  const size = dense ? 40 : 48;
+  return (
+    <View
+      accessibilityLabel="Loading song"
+      style={[
+        styles.row,
+        { paddingHorizontal: dense ? 12 : 16, borderBottomColor: colors.border },
+      ]}
+    >
+      <View style={[styles.skeletonArt, { width: size, height: size, backgroundColor: colors.elevated }]} />
+      <View style={styles.meta}>
+        <View style={[styles.skeletonTitle, { backgroundColor: colors.elevated }]} />
+        <View style={[styles.skeletonArtist, { backgroundColor: colors.elevated }]} />
+      </View>
+      <View style={[styles.skeletonMore, { backgroundColor: colors.elevated }]} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    height: 64,
+    minHeight: 72,
+    paddingVertical: 8,
     gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   index: {
     fontSize: 14,
@@ -97,7 +131,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   artist: {
     fontSize: 13,
@@ -109,5 +143,24 @@ const styles = StyleSheet.create({
   more: {
     width: 28,
     alignItems: "center",
+  },
+  skeletonArt: {
+    borderRadius: 8,
+  },
+  skeletonTitle: {
+    width: "72%",
+    height: 14,
+    borderRadius: 5,
+  },
+  skeletonArtist: {
+    width: "48%",
+    height: 12,
+    borderRadius: 5,
+    marginTop: 7,
+  },
+  skeletonMore: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
 });

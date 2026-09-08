@@ -21,8 +21,12 @@ export default function ScreenHeader({
   const router = useRouter();
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      <Pressable hitSlop={10} onPress={onBack ?? (() => router.back())} style={styles.back}>
+    <View style={[styles.wrap, { paddingTop: insets.top + 10 }]}>
+      <Pressable
+        hitSlop={10}
+        onPress={onBack ?? (() => router.back())}
+        style={({ pressed }) => [styles.back, pressed && { backgroundColor: colors.elevated }]}
+      >
         <Ionicons name="chevron-back" size={26} color={colors.text} />
       </Pressable>
       <View style={{ flex: 1 }}>
@@ -53,6 +57,7 @@ const styles = StyleSheet.create({
     height: 38,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 19,
   },
   title: {
     fontSize: 22,

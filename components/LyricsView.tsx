@@ -8,7 +8,7 @@ import { useTheme } from "./Theme";
 
 type Props = { song: Song };
 
-const LINE_HEIGHT = 72; // fixed height per line so scrollToIndex is exact
+const LINE_HEIGHT = 64;
 
 export default function LyricsView({ song }: Props) {
   const { colors } = useTheme();
@@ -18,7 +18,12 @@ export default function LyricsView({ song }: Props) {
   const [notFound, setNotFound] = useState(false);
   const listRef = useRef<FlatList<LyricLine>>(null);
   const userScrolling = useRef(false);
+  const resumeScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoIndex = useRef(-1);
+
+  useEffect(() => () => {
+    if (resumeScrollTimer.current) clearTimeout(resumeScrollTimer.current);
+  }, []);
 
   const { position } = useProgress(250);
 
@@ -41,7 +46,7 @@ export default function LyricsView({ song }: Props) {
     return () => {
       alive = false;
     };
-  }, [song.id]);
+  }, [song.id, song.title, song.artist, song.duration]);
 
   const activeIndex = useMemo(
     () => (lyrics ? activeLineIndex(lyrics, position) : -1),
@@ -90,7 +95,7 @@ export default function LyricsView({ song }: Props) {
       ref={listRef}
       data={lyrics ?? []}
       keyExtractor={(_, i) => String(i)}
-      contentContainerStyle={{ paddingVertical: 24 }}
+      contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
       getItemLayout={(_, index) => ({
         length: LINE_HEIGHT,
@@ -101,8 +106,12 @@ export default function LyricsView({ song }: Props) {
         userScrolling.current = true;
       }}
       onMomentumScrollEnd={() => {
-        setTimeout(() => (userScrolling.current = false), 3000);
-      }}
+          if (resumeScrollTimer.current) clearTimeout(resumeScrollTimer.current);
+          resumeScrollTimer.current = setTimeout(() => {
+            userScrolling.current = false;
+            resumeScrollTimer.current = null;
+          }, 3000);
+        }}
       renderItem={({ item, index }) => {
         const active = index === activeIndex;
         return (
@@ -145,7 +154,13 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   line: {
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 26,
+    textAlign: "center",
+    paddingHorizontal: 28,
+  },
+  listContent: {
+    paddingVertical: 20,
+    paddingHorizontal: 8,
   },
 });

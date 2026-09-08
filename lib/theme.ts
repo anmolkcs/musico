@@ -1,4 +1,14 @@
-export const ACCENT = "#FA233B";
+export type AccentTheme = "ruby" | "ocean" | "emerald" | "violet" | "amber";
+
+export const ACCENT_THEMES: { key: AccentTheme; label: string; color: string }[] = [
+  { key: "ruby", label: "Ruby", color: "#FA233B" },
+  { key: "ocean", label: "Ocean", color: "#2E7CF6" },
+  { key: "emerald", label: "Emerald", color: "#1DB954" },
+  { key: "violet", label: "Violet", color: "#9B6DFF" },
+  { key: "amber", label: "Amber", color: "#F6A623" },
+];
+
+export const ACCENT = ACCENT_THEMES[0].color;
 
 export type ThemeColors = {
   background: string;
@@ -33,6 +43,7 @@ export const light: ThemeColors = {
   tabBar: "rgba(255,255,255,0.9)",
 };
 
-export function themeFor(mode: "dark" | "light"): ThemeColors {
-  return mode === "dark" ? dark : light;
+export function themeFor(mode: "dark" | "light", accent: AccentTheme = "ruby"): ThemeColors {
+  const base = mode === "dark" ? dark : light;
+  return { ...base, accent: ACCENT_THEMES.find((item) => item.key === accent)?.color ?? ACCENT };
 }

@@ -17,10 +17,12 @@ import {
   upsertTrack,
 } from "../lib/db";
 import { Playlist, Song, TrackRecord } from "../lib/types";
+import { AccentTheme } from "../lib/theme";
 
 type LibraryState = {
   ready: boolean;
   theme: "dark" | "light" | null; // null = follow the system setting
+  accentTheme: AccentTheme;
   songs: TrackRecord[];
   liked: TrackRecord[];
   recent: TrackRecord[];
@@ -31,6 +33,7 @@ type LibraryState = {
   hydrate: () => Promise<void>;
   refresh: () => Promise<void>;
   toggleTheme: (current: "dark" | "light") => Promise<void>;
+  setAccentTheme: (accent: AccentTheme) => Promise<void>;
   like: (song: Song, liked: boolean) => Promise<void>;
   newPlaylist: (name: string) => Promise<number>;
   rename: (id: number, name: string) => Promise<void>;
@@ -39,7 +42,7 @@ type LibraryState = {
 
 async function loadAll() {
   const db = await openDb();
-  const [songs, liked, recent, playlists, artists, downloads, historyCount] = await Promise.all([
+  const results = await Promise.allSettled([
     getAllTracks(db),
     getLikedTracks(db),
     getRecentTracks(db, 24),
@@ -48,12 +51,23 @@ async function loadAll() {
     getDownloadedTracks(db),
     getHistoryCount(db),
   ]);
-  return { songs, liked, recent, playlists, artists, downloads, historyCount };
+  const value = <T,>(index: number, fallback: T) =>
+    results[index].status === "fulfilled" ? results[index].value as T : fallback;
+  return {
+    songs: value(0, []),
+    liked: value(1, []),
+    recent: value(2, []),
+    playlists: value(3, []),
+    artists: value(4, []),
+    downloads: value(5, []),
+    historyCount: value(6, 0),
+  };
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   ready: false,
   theme: null,
+  accentTheme: "ruby",
   songs: [],
   liked: [],
   recent: [],
@@ -65,9 +79,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   hydrate: async () => {
     const db = await openDb();
     const stored = await getSetting(db, "theme");
+    const storedAccent = await getSetting(db, "accentTheme");
     const theme = stored === "light" || stored === "dark" ? stored : null;
+    const accentTheme: AccentTheme =
+      storedAccent === "ocean" || storedAccent === "emerald" || storedAccent === "violet" || storedAccent === "amber"
+        ? storedAccent
+        : "ruby";
     const data = await loadAll();
-    set({ ready: true, theme, ...data });
+    set({ ready: true, theme, accentTheme, ...data });
   },
 
   refresh: async () => {
@@ -80,6 +99,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ theme: next });
     const db = await openDb();
     await setSetting(db, "theme", next);
+  },
+
+  setAccentTheme: async (accent) => {
+    set({ accentTheme: accent });
+    const db = await openDb();
+    await setSetting(db, "accentTheme", accent);
   },
 
   like: async (song, liked) => {

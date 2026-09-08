@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import TrackPlayer, { State, usePlaybackState, useProgress } from "react-native-track-player";
@@ -73,7 +73,11 @@ export default function PlayerScreen() {
         />
         <View style={{ flex: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }}>
           <View style={styles.topRow}>
-            <Pressable hitSlop={12} onPress={() => router.back()}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.topButton, pressed && { backgroundColor: colors.elevated }]}
+            >
               <Ionicons name="chevron-down" size={28} color={colors.text} />
             </Pressable>
             <View style={{ flex: 1, alignItems: "center" }}>
@@ -81,7 +85,15 @@ export default function PlayerScreen() {
                 {sourceName ? sourceLabel(sourceName) : "NOW PLAYING"}
               </Text>
             </View>
-            <Pressable hitSlop={12} onPress={() => setShowLyrics((v) => !v)}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => setShowLyrics((v) => !v)}
+              style={({ pressed }) => [
+                styles.topButton,
+                showLyrics && { backgroundColor: colors.elevated },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
               <Ionicons
                 name="text"
                 size={24}
@@ -101,10 +113,11 @@ export default function PlayerScreen() {
                   source={{ uri: song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg` }}
                   style={styles.art}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
                   transition={200}
                 />
               </View>
-              <View style={styles.titleWrap}>
+              <View style={[styles.titleWrap, { backgroundColor: colors.card }]}>
                 <Text numberOfLines={2} style={[styles.title, { color: colors.text }]}>
                   {song.title}
                 </Text>
@@ -174,7 +187,14 @@ export default function PlayerScreen() {
           </View>
 
           <View style={styles.bottomRow}>
-            <Pressable hitSlop={12} onPress={() => like(song, !isLiked)}>
+            <Pressable
+              hitSlop={12}
+              onPress={() =>
+                like(song, !isLiked).catch((error) =>
+                  Alert.alert("Library error", error instanceof Error ? error.message : "Could not update liked songs")
+                )
+              }
+            >
               <Ionicons name={isLiked ? "heart" : "heart-outline"} size={24} color={isLiked ? colors.accent : colors.muted} />
             </Pressable>
             <Slider
@@ -226,6 +246,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     height: 44,
   },
+  topButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   source: {
     fontSize: 11,
     fontWeight: "700",
@@ -248,7 +275,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#2A2A33",
   },
   titleWrap: {
-    paddingHorizontal: 28,
+    marginHorizontal: 16,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
     paddingTop: 20,
     gap: 4,
   },

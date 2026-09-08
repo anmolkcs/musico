@@ -31,7 +31,20 @@ export default function LibraryScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 8 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, { color: colors.text }]}>Library</Text>
+        <View style={styles.headingRow}>
+          <View>
+            <Text style={[styles.eyebrow, { color: colors.muted }]}>YOUR COLLECTION</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Library</Text>
+          </View>
+          <Pressable
+            onPress={() => router.push("/settings")}
+            style={({ pressed }) => [styles.settingsButton, { backgroundColor: colors.card }, pressed && { backgroundColor: colors.elevated }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+          >
+            <Ionicons name="settings-outline" size={21} color={colors.text} />
+          </Pressable>
+        </View>
         <View style={styles.grid}>
           {rows.map((row) => (
             <Pressable
@@ -39,7 +52,7 @@ export default function LibraryScreen() {
               style={({ pressed }) => [
                 styles.tile,
                 { backgroundColor: colors.card, borderColor: colors.border },
-                pressed && { opacity: 0.7 },
+                pressed && { backgroundColor: colors.elevated, transform: [{ scale: 0.98 }] },
               ]}
               android_ripple={{ color: colors.border }}
               onPress={() => router.push(row.route as any)}
@@ -86,8 +99,26 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: "800",
-    paddingHorizontal: 16,
     paddingBottom: 14,
+  },
+  headingRow: {
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  settingsButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    marginBottom: 3,
   },
   grid: {
     flexDirection: "row",

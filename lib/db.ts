@@ -53,8 +53,18 @@ async function initDb(): Promise<SQLite.SQLiteDatabase> {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT
     );
+    CREATE TABLE IF NOT EXISTS artist_details (
+      name TEXT PRIMARY KEY NOT NULL,
+      data TEXT NOT NULL,
+      fetchedAt INTEGER NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_history_playedAt ON history (playedAt DESC);
   `);
+  const versionRow = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+  const version = versionRow?.user_version ?? 0;
+  if (version < 1) {
+    await db.execAsync("PRAGMA user_version = 1");
+  }
   return db;
 }
 
@@ -283,6 +293,25 @@ export async function getSetting(db: SQLite.SQLiteDatabase, key: string): Promis
 
 export async function setSetting(db: SQLite.SQLiteDatabase, key: string, value: string) {
   await db.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, key, value);
+}
+
+export async function getCachedArtistDetails(
+  db: SQLite.SQLiteDatabase,
+  name: string
+): Promise<{ data: string; fetchedAt: number } | null> {
+  return db.getFirstAsync<{ data: string; fetchedAt: number }>(
+    `SELECT data, fetchedAt FROM artist_details WHERE name = ? COLLATE NOCASE`,
+    name
+  );
+}
+
+export async function saveArtistDetails(db: SQLite.SQLiteDatabase, name: string, data: string) {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO artist_details (name, data, fetchedAt) VALUES (?, ?, ?)`,
+    name,
+    data,
+    Date.now()
+  );
 }
 
 // ---- Artists ----

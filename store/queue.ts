@@ -9,9 +9,11 @@ type QueueState = {
   shuffle: boolean;
   repeat: RepeatMode;
   sourceName: string;
+  loading: boolean;
   loadToken: number;
   setQueue: (songs: Song[], index: number, sourceName: string) => void;
   setIndex: (index: number) => void;
+  setLoading: (loading: boolean) => void;
   setShuffle: (shuffle: boolean) => void;
   setRepeat: (repeat: RepeatMode) => void;
   bumpLoadToken: () => void;
@@ -24,9 +26,11 @@ export const useQueueStore = create<QueueState>((set) => ({
   shuffle: false,
   repeat: "off",
   sourceName: "",
+  loading: false,
   loadToken: 0,
-  setQueue: (songs, index, sourceName) => set({ songs, index, sourceName }),
+  setQueue: (songs, index, sourceName) => set({ songs, index, sourceName, loading: true }),
   setIndex: (index) => set({ index }),
+  setLoading: (loading) => set({ loading }),
   setShuffle: (shuffle) => set({ shuffle }),
   setRepeat: (repeat) => set({ repeat }),
   bumpLoadToken: () => set((s) => ({ loadToken: s.loadToken + 1 })),

@@ -22,7 +22,8 @@ export function useEffectiveThemeMode(): "dark" | "light" {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const mode = useEffectiveThemeMode();
-  return <ThemeContext.Provider value={{ mode, colors: themeFor(mode) }}>{children}</ThemeContext.Provider>;
+  const accentTheme = useLibraryStore((s) => s.accentTheme);
+  return <ThemeContext.Provider value={{ mode, colors: themeFor(mode, accentTheme) }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

@@ -7,13 +7,14 @@ import TrackPlayer, {
 import * as FileSystem from "expo-file-system/legacy";
 import YtCore from "../modules/yt-core";
 import { artworkFor, Song } from "./types";
-import { getTrack, recordPlay, openDb } from "./db";
+import { getTrack, recordPlay, openDb, setDownloadStatus } from "./db";
 import { currentSong, useQueueStore } from "../store/queue";
 import { useLibraryStore } from "../store/library";
 import { nextIndex, prevIndex } from "./queue-logic";
 import type { StreamResult } from "../modules/yt-core";
 
 let playerReady = false;
+let playbackServiceRegistered = false;
 
 export async function setupPlayer(): Promise<boolean> {
   if (playerReady) return false;
@@ -100,6 +101,7 @@ async function getPlayableUrl(song: Song): Promise<{ url: string; format: string
     try {
       const info = await FileSystem.getInfoAsync(track.localPath);
       if (info.exists) return { url: track.localPath, format: "local" };
+      await setDownloadStatus(db, song.id, 0, null);
     } catch {}
   }
   const stream = await resolveStream(song.id);
@@ -133,9 +135,13 @@ export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}
   const { autoPlay = true } = opts;
   const { songs } = useQueueStore.getState();
   const song = songs[index];
-  if (!song) return;
+  if (!song) {
+    useQueueStore.getState().setLoading(false);
+    return;
+  }
   const seq = ++loadSeq;
   useQueueStore.getState().setIndex(index);
+  useQueueStore.getState().setLoading(true);
   try {
     const { url, format } = await getPlayableUrl(song);
     if (seq !== loadSeq) return; // superseded by a newer request
@@ -156,6 +162,8 @@ export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}
     if (seq !== loadSeq) return;
     console.warn("loadIndex failed", song.id, e);
     throw e;
+  } finally {
+    if (seq === loadSeq) useQueueStore.getState().setLoading(false);
   }
 }
 
@@ -217,6 +225,8 @@ export function cycleRepeat() {
 }
 
 export async function jumpTo(index: number) {
+  const song = useQueueStore.getState().songs[index];
+  if (song) errorRetried.delete(song.id);
   try {
     await loadIndex(index);
   } catch {}
@@ -226,7 +236,14 @@ export async function togglePlayPause() {
   const state = await TrackPlayer.getPlaybackState();
   if (state.state === State.Playing) {
     await TrackPlayer.pause();
-  } else if (state.state === State.Paused) {
+  } else if (
+    state.state === State.Paused ||
+    state.state === State.Ready ||
+    state.state === State.Buffering ||
+    state.state === State.Loading ||
+    state.state === State.Ended ||
+    state.state === State.Stopped
+  ) {
     await TrackPlayer.play();
   }
 }
@@ -237,6 +254,7 @@ export async function togglePlayPause() {
 
 const PLAY_THRESHOLD_SECONDS = 10;
 const recordedTrackIds = new Set<string>();
+const recordingTrackIds = new Set<string>();
 let lastLibraryRefresh = 0;
 
 function throttleRefresh() {
@@ -247,13 +265,19 @@ function throttleRefresh() {
 }
 
 async function recordConfirmedPlay(song: Song) {
-  if (recordedTrackIds.has(song.id)) return;
-  recordedTrackIds.add(song.id);
+  if (recordedTrackIds.has(song.id) || recordingTrackIds.has(song.id)) return;
+  recordingTrackIds.add(song.id);
   try {
     const db = await openDb();
     await recordPlay(db, song);
+    recordedTrackIds.add(song.id);
+    if (recordedTrackIds.size > 500) recordedTrackIds.clear();
     throttleRefresh();
-  } catch {}
+  } catch (error) {
+    console.warn("record play failed", song.id, error);
+  } finally {
+    recordingTrackIds.delete(song.id);
+  }
 }
 
 // Prefetch the next stream URL (shuffle-aware) so skips feel instant
@@ -287,6 +311,8 @@ async function handlePlaybackError() {
 // ---- Playback service (registered in root layout) ----
 
 export async function PlaybackService() {
+  if (playbackServiceRegistered) return;
+  playbackServiceRegistered = true;
   TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
   TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
   TrackPlayer.addEventListener(Event.RemoteNext, () => playNext(false));

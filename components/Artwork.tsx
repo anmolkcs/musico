@@ -24,7 +24,14 @@ export default function Artwork({ song, size, radius = 8, style }: Props) {
         style,
       ]}
     >
-      <Image source={{ uri }} style={styles.image} contentFit="cover" recyclingKey={uri} transition={150} />
+      <Image
+        source={{ uri }}
+        style={styles.image}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        recyclingKey={uri}
+        transition={150}
+      />
     </View>
   );
 }

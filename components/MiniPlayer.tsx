@@ -2,61 +2,70 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackState, State, useProgress } from "react-native-track-player";
 import { artworkFor } from "../lib/types";
 import { playNext, togglePlayPause } from "../lib/player";
 import { useTheme } from "./Theme";
+import { useQueueStore } from "../store/queue";
 
 export default function MiniPlayer() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const track = useActiveTrack();
+  const queuedSong = useQueueStore((s) => s.songs[s.index]);
+  const loading = useQueueStore((s) => s.loading);
   const state = usePlaybackState();
   const playing = state?.state === State.Playing || state?.state === State.Buffering;
+  const displayTrack = loading && queuedSong ? queuedSong : track ?? queuedSong;
+  const artwork = displayTrack && ("artwork" in displayTrack ? displayTrack.artwork : displayTrack.thumbnail);
 
-  if (!track) return null;
+  if (!displayTrack) return null;
 
   return (
     <View style={[styles.wrap, { bottom: 56 + insets.bottom }]} pointerEvents="box-none">
-      <Pressable
-        style={[styles.bar, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => router.push("/player")}
-      >
+      <View style={[styles.bar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.progressTrack}>
           <MiniProgress color={colors.accent} />
         </View>
-        <Image
-          source={{ uri: track.artwork ?? artworkFor(String(track.id)) }}
-          style={styles.art}
-          contentFit="cover"
-        />
-        <View style={styles.meta}>
-          <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
-            {track.title}
-          </Text>
-          <Text numberOfLines={1} style={[styles.artist, { color: colors.muted }]}>
-            {track.artist}
-          </Text>
-        </View>
+        <Pressable style={styles.trackTarget} onPress={() => router.push("/player")}>
+          <Image
+            source={{ uri: artwork ?? artworkFor(String(displayTrack.id)) }}
+            style={styles.art}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+          />
+          <View style={styles.meta}>
+            <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
+              {displayTrack.title}
+            </Text>
+            <Text numberOfLines={1} style={[styles.artist, { color: colors.muted }]}>
+              {displayTrack.artist}
+            </Text>
+          </View>
+        </Pressable>
         <Pressable
           onPress={togglePlayPause}
           hitSlop={12}
           style={[styles.button, { backgroundColor: colors.elevated }]}
         >
-          <Ionicons
-            name={playing ? "pause" : "play"}
-            size={22}
-            color={colors.text}
-            style={playing ? undefined : styles.playIcon}
-          />
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <Ionicons
+              name={playing ? "pause" : "play"}
+              size={22}
+              color={colors.text}
+              style={playing ? undefined : styles.playIcon}
+            />
+          )}
         </Pressable>
         <Pressable onPress={() => playNext(false)} hitSlop={12} style={styles.button}>
           <Ionicons name="play-forward" size={22} color={colors.text} />
         </Pressable>
-      </Pressable>
+      </View>
     </View>
   );
 }
@@ -87,6 +96,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
+  },
+  trackTarget: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   progressTrack: {
     position: "absolute",

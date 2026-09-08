@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenHeader from "@/components/ScreenHeader";
 import SongRow from "@/components/SongRow";
 import { Empty } from "./songs";
@@ -47,7 +47,7 @@ export default function PlaylistScreen() {
       await refreshLibrary();
       setReloadSeq((n) => n + 1);
     },
-    [id]
+    [id, refreshLibrary]
   );
 
   const play = (index: number) => {
@@ -58,7 +58,9 @@ export default function PlaylistScreen() {
       duration: t.duration,
       thumbnail: t.thumbnail,
     }));
-    playQueue(list, index, name).catch(() => {});
+    playQueue(list, index, name).catch((error) => {
+      Alert.alert("Playback error", error instanceof Error ? error.message : "Could not play this playlist");
+    });
   };
 
   return (

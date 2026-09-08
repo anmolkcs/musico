@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import Artwork from "@/components/Artwork";
 import ScreenHeader from "@/components/ScreenHeader";
 import { useTheme } from "@/components/Theme";
@@ -29,7 +29,9 @@ export default function DownloadsScreen() {
   }));
 
   const play = (index: number) => {
-    playQueue(done, index, "Downloads").catch(() => {});
+    playQueue(done, index, "Downloads").catch((error) => {
+      Alert.alert("Playback error", error instanceof Error ? error.message : "Could not play this download");
+    });
   };
 
   const rows = [...active.map((a) => ({ kind: "active" as const, data: a })), ...done.map((d, i) => ({ kind: "done" as const, data: d, index: i }))];
@@ -56,11 +58,17 @@ export default function DownloadsScreen() {
                 status={row.data.status}
                 progress={row.data.progress}
                 error={row.data.error}
-                onCancel={() => cancel(row.data.song.id)}
-                onRetry={() => start(row.data.song)}
+                onCancel={() => cancel(row.data.song.id).catch(() => Alert.alert("Download error", "Could not cancel the download"))}
+                onRetry={() => start(row.data.song).catch((error) => Alert.alert("Download error", error instanceof Error ? error.message : "Could not retry the download"))}
               />
             ) : (
-              <DoneRow song={row.data} onPlay={() => play(row.index)} onDelete={() => remove(row.data.id)} />
+              <DoneRow
+                song={row.data}
+                onPlay={() => play(row.index)}
+                onDelete={() =>
+                  remove(row.data.id).catch(() => Alert.alert("Download error", "Could not delete the download"))
+                }
+              />
             )
           }
         />

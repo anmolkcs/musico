@@ -22,7 +22,9 @@ export default function TrackMenu() {
   const track = useTrackMenu((s) => s.track);
   const context = useTrackMenu((s) => s.context);
   const close = useTrackMenu((s) => s.close);
-  const { songs, liked: likedSongs, playlists } = useLibraryStore();
+  const songs = useLibraryStore((s) => s.songs);
+  const likedSongs = useLibraryStore((s) => s.liked);
+  const playlists = useLibraryStore((s) => s.playlists);
   const { like, newPlaylist } = useLibraryStore.getState();
   const { start, cancel, remove, items } = useDownloadsStore();
 
@@ -76,7 +78,9 @@ export default function TrackMenu() {
     label: liked ? "Remove from Liked" : "Add to Liked",
     onPress: () => {
       close();
-      like(song, !liked).catch(() => {});
+      like(song, !liked).catch((e) => {
+        Alert.alert("Library error", e instanceof Error ? e.message : "Could not update liked songs");
+      });
     },
   });
 
@@ -86,7 +90,9 @@ export default function TrackMenu() {
       label: "Download",
       onPress: () => {
         close();
-        ensureTrack().then(() => start(song)).catch(() => {});
+        ensureTrack()
+          .then(() => start(song))
+          .catch((error) => Alert.alert("Download error", error instanceof Error ? error.message : "Could not download this song"));
       },
     });
   } else if (download.status === "downloading") {
@@ -95,7 +101,7 @@ export default function TrackMenu() {
       label: "Cancel download",
       onPress: () => {
         close();
-        cancel(song.id).catch(() => {});
+        cancel(song.id).catch(() => Alert.alert("Download error", "Could not cancel the download"));
       },
     });
   } else if (download.status === "done") {
@@ -105,7 +111,7 @@ export default function TrackMenu() {
       danger: true,
       onPress: () => {
         close();
-        remove(song.id).catch(() => {});
+        remove(song.id).catch(() => Alert.alert("Download error", "Could not delete the download"));
       },
     });
   }
