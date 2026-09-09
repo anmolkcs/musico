@@ -4,12 +4,13 @@ import {
   FlatList,
   Keyboard,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SongRow, { SongRowSkeleton } from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";
@@ -24,11 +25,24 @@ const FILTERS = [
   { key: "albums", label: "Albums" },
 ] as const;
 
+// Discovery shortcuts — each tile runs a REAL search, no staged results.
+const TRENDING = ["Japanese City Pop", "Nordic Jazz", "Tape Loops", "Lo-Fi Hip Hop", "Acoustic Folk"];
+
+const ARCHIVES: { eyebrow: string; title: string; hint: string; query: string }[] = [
+  { eyebrow: "WARM WOODS", title: "Acoustic & Folk", hint: "Tap to explore", query: "acoustic folk" },
+  { eyebrow: "ANALOGUE PURE", title: "Vinyl Archives", hint: "Tap to explore", query: "vinyl jazz classics" },
+  { eyebrow: "DRIFT & SPACE", title: "Ambient & Minimal", hint: "Tap to explore", query: "ambient minimal" },
+  { eyebrow: "DEEP VELVET", title: "Soul & Neo-R&B", hint: "Tap to explore", query: "neo soul" },
+  { eyebrow: "FELT & KEY", title: "Modern Classical", hint: "Tap to explore", query: "modern classical piano" },
+  { eyebrow: "SUB-CURRENTS", title: "Indie & Alt", hint: "Tap to explore", query: "indie alternative" },
+];
+
 type Filter = (typeof FILTERS)[number]["key"];
 
 export default function SearchScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ q?: string }>();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("songs");
@@ -71,6 +85,18 @@ export default function SearchScreen() {
   };
 
   useEffect(() => {
+    if (typeof params.q === "string") {
+      const incoming = params.q.trim();
+      // A deep-linked query replaces the current search state entirely;
+      // an empty one clears it (stale results must not persist).
+      setQuery(params.q);
+      setFilter("songs");
+      setError(null);
+      if (!incoming) setResults([]);
+    }
+  }, [params.q]);
+
+  useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => runSearch(query, filter), 450);
     return () => {
@@ -84,8 +110,8 @@ export default function SearchScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 8 }}>
       <View style={styles.searchHeading}>
-        <Text style={[styles.heading, { color: colors.text }]}>Search</Text>
-        <Text style={[styles.helper, { color: colors.muted }]}>Find your next favorite song</Text>
+        <Text style={[styles.heading, { color: colors.text }]}>Explore</Text>
+        <Text style={[styles.helper, { color: colors.muted }]}>Uncover rare recordings and curated realms</Text>
       </View>
       <View style={styles.searchBarWrap}>
         <View
@@ -162,12 +188,64 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {!loading && !error && results.length === 0 && (
+      {!loading && !error && results.length === 0 && query.trim().length === 0 && (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 140 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.discovery}>
+            <View style={styles.discoveryHeader}>
+              <Text style={[styles.discoveryEyebrow, { color: colors.muted }]}>FREQUENT DISCOVERIES</Text>
+              <Ionicons name="trending-up" size={16} color={colors.faint} />
+            </View>
+            <View style={styles.tagRow}>
+              {TRENDING.map((tag) => (
+                <Pressable
+                  key={tag}
+                  onPress={() => setQuery(tag)}
+                  style={({ pressed }) => [
+                    styles.tag,
+                    { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+                    pressed && { backgroundColor: colors.elevated },
+                  ]}
+                >
+                  <Text style={[styles.tagText, { color: colors.text }]}>
+                    <Text style={{ color: colors.accent }}># </Text>
+                    {tag}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.archiveHeading}>
+              <Text style={[styles.archiveTitle, { color: colors.text }]}>Browse Archives</Text>
+              <Text style={[styles.archiveCount, { color: colors.faint }]}>6 SOUNDSCAPES</Text>
+            </View>
+            <View style={styles.archiveGrid}>
+              {ARCHIVES.map((item) => (
+                <Pressable
+                  key={item.title}
+                  onPress={() => setQuery(item.query)}
+                  style={({ pressed }) => [
+                    styles.archiveTile,
+                    { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+                    pressed && { backgroundColor: colors.elevated },
+                  ]}
+                >
+                  <Text style={[styles.archiveEyebrow, { color: colors.accent }]}>{item.eyebrow}</Text>
+                  <Text style={[styles.archiveName, { color: colors.text }]}>{item.title}</Text>
+                  <Text style={[styles.archiveHint, { color: colors.faint }]}>{item.hint} ›</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      )}
+
+      {!loading && !error && results.length === 0 && query.trim().length > 0 && (
         <View style={styles.center}>
-          <Ionicons name={query ? "sad-outline" : "search"} size={36} color={colors.muted} />
-          <Text style={[styles.errorText, { color: colors.muted }]}>
-            {query ? "No results" : "Search YouTube Music"}
-          </Text>
+          <Ionicons name="sad-outline" size={36} color={colors.muted} />
+          <Text style={[styles.errorText, { color: colors.muted }]}>No results</Text>
         </View>
       )}
 
@@ -253,6 +331,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
+  discovery: { paddingHorizontal: 20, paddingTop: 12 },
+  discoveryHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  discoveryEyebrow: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.05 },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingTop: 9, paddingBottom: 20 },
+  tag: { borderRadius: 4, paddingHorizontal: 10, paddingVertical: 7 },
+  tagText: { fontFamily: SANS.medium, fontSize: 11 },
+  archiveHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingTop: 23, paddingBottom: 9 },
+  archiveTitle: { fontFamily: SERIF.medium, fontSize: 20 },
+  archiveCount: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 0.8 },
+  archiveGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  archiveTile: { width: "48%", flexGrow: 1, minHeight: 128, borderRadius: 8, padding: 12, justifyContent: "flex-end", gap: 2 },
+  archiveEyebrow: { fontFamily: SANS.semiBold, fontSize: 9, letterSpacing: 1.1 },
+  archiveName: { fontFamily: SERIF.medium, fontSize: 17, lineHeight: 22 },
+  archiveHint: { fontFamily: SANS.regular, fontSize: 11, marginTop: 2 },
   chip: {
     paddingHorizontal: 12,
     height: 28,

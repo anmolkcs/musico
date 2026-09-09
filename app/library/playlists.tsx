@@ -46,9 +46,20 @@ export default function PlaylistsScreen() {
         title="Playlists"
         subtitle={`${playlists.length} playlists`}
         action={
-          <Pressable hitSlop={10} onPress={() => setMode({ kind: "create" })} style={{ padding: 8 }}>
-            <Ionicons name="add" size={28} color={colors.accent} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Pressable
+              hitSlop={10}
+              onPress={() => router.push("/library/import-spotify" as any)}
+              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Import from Spotify"
+            >
+              <Ionicons name="download-outline" size={24} color={colors.accent} />
+            </Pressable>
+            <Pressable hitSlop={10} onPress={() => setMode({ kind: "create" })} style={{ padding: 8 }}>
+              <Ionicons name="add" size={28} color={colors.accent} />
+            </Pressable>
+          </View>
         }
       />
       {playlists.length === 0 ? (

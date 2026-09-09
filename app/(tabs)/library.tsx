@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import SongRow from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";
 import { SERIF, SANS } from "@/lib/theme";
 import { useLibraryStore } from "@/store/library";
@@ -18,14 +19,14 @@ export default function LibraryScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { songs, liked, playlists, artists, downloads, historyCount } = useLibraryStore();
+  const { songs, liked, recent, playlists, artists, downloads, historyCount } = useLibraryStore();
 
+  // Liked + Downloads live as bento cards above, so they are intentionally
+  // excluded here to avoid showing them twice.
   const rows: Row[] = [
     { icon: "musical-notes", label: "Songs", count: songs.length, route: "/library/songs" },
-    { icon: "heart", label: "Liked", count: liked.length, route: "/library/liked" },
     { icon: "list", label: "Playlists", count: playlists.length, route: "/library/playlists" },
     { icon: "person", label: "Artists", count: artists.length, route: "/library/artists" },
-    { icon: "download", label: "Downloads", count: downloads.length, route: "/downloads" },
     { icon: "time", label: "History", count: historyCount, route: "/library/history" },
   ];
 
@@ -33,23 +34,99 @@ export default function LibraryScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 8 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
         <View style={styles.headingRow}>
-          <View>
-            <Text style={[styles.eyebrow, { color: colors.faint }]}>YOUR COLLECTION</Text>
-            <Text style={[styles.title, { color: colors.text }]}>Library</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.eyebrow, { color: colors.accent }]}>ARCHIVED WORKS</Text>
+            <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>Your Library</Text>
           </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => router.push("/library/songs")}
+              style={({ pressed }) => [
+                styles.settingsButton,
+                { backgroundColor: colors.card, borderColor: colors.border },
+                pressed && { backgroundColor: colors.elevated },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Search library"
+            >
+              <Ionicons name="search" size={20} color={colors.muted} />
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/settings" as any)}
+              style={({ pressed }) => [
+                styles.settingsButton,
+                { backgroundColor: colors.card, borderColor: colors.border },
+                pressed && { backgroundColor: colors.elevated },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open settings"
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.muted} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.bento}>
           <Pressable
-            onPress={() => router.push("/settings")}
+            onPress={() => router.push("/library/liked" as any)}
             style={({ pressed }) => [
-              styles.settingsButton,
+              styles.bentoCard,
               { backgroundColor: colors.card, borderColor: colors.border },
               pressed && { backgroundColor: colors.elevated },
             ]}
-            accessibilityRole="button"
-            accessibilityLabel="Open settings"
           >
-            <Ionicons name="settings-outline" size={21} color={colors.text} />
+            <View style={[styles.bentoIcon, { backgroundColor: colors.elevated }]}>
+              <Ionicons name="heart" size={20} color={colors.accent} />
+            </View>
+            <Text style={[styles.bentoTag, { color: colors.accent }]}>AUTO</Text>
+            <Text style={[styles.bentoTitle, { color: colors.text }]}>Liked Songs</Text>
+            <Text style={[styles.bentoSub, { color: colors.muted }]}>
+              {liked.length} {liked.length === 1 ? "track" : "tracks"}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/downloads" as any)}
+            style={({ pressed }) => [
+              styles.bentoCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              pressed && { backgroundColor: colors.elevated },
+            ]}
+          >
+            <View style={[styles.bentoIcon, { backgroundColor: colors.elevated }]}>
+              <Ionicons name="download" size={20} color={colors.accent} />
+            </View>
+            <Text style={[styles.bentoTag, { color: colors.muted }]}>OFFLINE</Text>
+            <Text style={[styles.bentoTitle, { color: colors.text }]}>Downloads</Text>
+            <Text style={[styles.bentoSub, { color: colors.muted }]}>
+              {downloads.length} {downloads.length === 1 ? "track" : "tracks"}
+            </Text>
           </Pressable>
         </View>
+
+        {recent.length > 0 && (
+          <>
+            <View style={styles.listHeader}>
+              <Text style={[styles.collectionLabel, { color: colors.muted }]}>RECENTLY ADDED</Text>
+              <Pressable onPress={() => router.push("/library/history" as any)}>
+                <Text style={[styles.seeAll, { color: colors.accent }]}>See all</Text>
+              </Pressable>
+            </View>
+            <View>
+              {recent.slice(0, 5).map((item, i) => (
+                <SongRow
+                  key={item.id}
+                  song={{ id: item.id, title: item.title, artist: item.artist, duration: item.duration, thumbnail: item.thumbnail }}
+                  index={i}
+                  queue={recent.slice(0, 5).map((t) => ({ id: t.id, title: t.title, artist: t.artist, duration: t.duration, thumbnail: t.thumbnail }))}
+                  sourceName="Recently played"
+                  dense
+                />
+              ))}
+            </View>
+          </>
+        )}
+
+        <Text style={[styles.collectionLabel, { color: colors.muted, paddingTop: 18 }]}>YOUR COLLECTION</Text>
         <View style={styles.grid}>
           {rows.map((row) => (
             <Pressable
@@ -69,32 +146,6 @@ export default function LibraryScreen() {
           ))}
         </View>
 
-        {playlists.length > 0 && (
-          <>
-            <Text style={[styles.section, { color: colors.text }]}>Recent playlists</Text>
-            {playlists.slice(0, 5).map((p) => (
-              <Pressable
-                key={p.id}
-                style={({ pressed }) => [styles.plRow, pressed && { opacity: 0.7 }]}
-                android_ripple={{ color: colors.border }}
-                onPress={() => router.push({ pathname: "/library/playlist", params: { id: String(p.id) } })}
-              >
-                <View style={[styles.plIcon, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <Ionicons name="musical-notes" size={20} color={colors.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={[styles.plName, { color: colors.text }]}>
-                    {p.name}
-                  </Text>
-                  <Text style={[styles.plCount, { color: colors.muted }]}>
-                    {p.count} {p.count === 1 ? "song" : "songs"}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-              </Pressable>
-            ))}
-          </>
-        )}
       </ScrollView>
     </View>
   );
@@ -134,10 +185,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 10,
   },
+  collectionLabel: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.1, paddingHorizontal: 20, paddingBottom: 10 },
+  listHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingRight: 20, paddingBottom: 2 },
+  seeAll: { fontFamily: SANS.semiBold, fontSize: 13 },
+  bento: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 6 },
+  bentoCard: { flex: 1, minHeight: 144, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, padding: 14, justifyContent: "flex-end", gap: 2 },
+  bentoIcon: { position: "absolute", top: 12, left: 12, width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  bentoTag: { position: "absolute", top: 14, right: 12, fontFamily: SANS.semiBold, fontSize: 9, letterSpacing: 1.1 },
+  bentoTitle: { fontFamily: SERIF.medium, fontSize: 18, lineHeight: 23, marginTop: 30 },
+  bentoSub: { fontFamily: SANS.regular, fontSize: 12 },
   tile: {
-    width: "30.5%",
-    flexGrow: 1,
-    aspectRatio: 1,
+    width: "48%",
+    aspectRatio: 1.6,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 12,
@@ -151,35 +210,5 @@ const styles = StyleSheet.create({
     fontFamily: SANS.regular,
     fontSize: 12,
     fontVariant: ["tabular-nums"],
-  },
-  section: {
-    fontFamily: SERIF.medium,
-    fontSize: 19,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  plRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  plIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  plName: {
-    fontFamily: SANS.semiBold,
-    fontSize: 15,
-  },
-  plCount: {
-    fontFamily: SANS.regular,
-    fontSize: 12,
   },
 });

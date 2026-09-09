@@ -1,14 +1,14 @@
 import { TextStyle, ViewStyle } from "react-native";
 
 /**
- * Cadence design system — Warm Editorial Minimalism × Tactile Analog Glassmorphism.
+ * Musico design system — Warm Editorial Minimalism × Tactile Analog Glassmorphism.
  * Surfaces are warm soot/charcoal (never pure black), text is soft ivory,
  * and terracotta amber is the single interactive accent.
  */
 
 export type AccentTheme = "ruby" | "ocean" | "emerald" | "violet" | "amber";
 
-// Keys are legacy (persisted in settings storage); the palette itself is Cadence-warm.
+// Keys are legacy (persisted in settings storage); the palette stays warm and restrained.
 export const ACCENT_THEMES: { key: AccentTheme; label: string; color: string }[] = [
   { key: "ruby", label: "Terracotta", color: "#D97736" },
   { key: "ocean", label: "Ember", color: "#C2632B" },
@@ -96,7 +96,7 @@ export const SANS = {
 } as const;
 
 
-/** Cadence type scale, tuned for mobile. */
+/** Musico type scale, tuned for mobile. */
 export const TYPE = {
   display: { fontFamily: SERIF.regular, fontSize: 34, lineHeight: 42, letterSpacing: -0.5 } as TextStyle,
   headline: { fontFamily: SERIF.medium, fontSize: 24, lineHeight: 31, letterSpacing: -0.2 } as TextStyle,

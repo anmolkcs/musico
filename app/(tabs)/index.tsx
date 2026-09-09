@@ -1,58 +1,50 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/components/Theme";
 import { SERIF, SANS, VINYL_SHADOW } from "@/lib/theme";
 import { playQueue } from "@/lib/player";
 import { artworkFor, Song } from "@/lib/types";
-import YtCore from "@/modules/yt-core";
+import SongRow from "@/components/SongRow";
+import { LogoMark } from "@/components/Logo";
 import { useLibraryStore } from "@/store/library";
 
-// Warm umber duotones — the listening-room palette, no neon.
-const STATIONS: { title: string; query: string; colors: [string, string, string] }[] = [
-  { title: "Late Night Vinyl", query: "late night mellow classics", colors: ["#3A2A1C", "#241B13", "#15110E"] },
-  { title: "Morning Rituals", query: "acoustic morning coffeehouse", colors: ["#43301F", "#2A2018", "#171310"] },
-  { title: "Analog Throwback", query: "70s 80s classic hits", colors: ["#3D241A", "#261A12", "#161009"] },
-  { title: "Velvet Jazz", query: "smooth jazz saxophone", colors: ["#33251E", "#201914", "#121009"] },
-  { title: "Rainy Window", query: "rainy day lofi chill", colors: ["#2E2A24", "#1E1B17", "#121110"] },
-  { title: "Amber Hour", query: "sunset indie folk", colors: ["#462E1A", "#2B1D10", "#171008"] },
-];
+// Mood shortcuts — each runs a real search, no staged mixes.
+const MOODS = [
+  { label: "Late Night Vinyl", query: "late night vinyl jazz" },
+  { label: "Deep Focus", query: "deep focus ambient" },
+  { label: "Warm Indie Folk", query: "indie folk acoustic" },
+  { label: "Nordic Ambient", query: "nordic ambient" },
+] as const;
 
+// Warm umber duotones — the listening-room palette, no neon.
 export default function HomeScreen() {
   const { colors, mode } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const recent = useLibraryStore((s) => s.recent);
   const liked = useLibraryStore((s) => s.liked);
-  const downloads = useLibraryStore((s) => s.downloads);
   const songs = useLibraryStore((s) => s.songs);
-  const toggleTheme = useLibraryStore((s) => s.toggleTheme);
-  const [loadingStation, setLoadingStation] = useState<string | null>(null);
+  const downloads = useLibraryStore((s) => s.downloads);
+  const profileName = useLibraryStore((s) => s.profileName);
   const heroSongs = recent.length > 0 ? recent : liked.length > 0 ? liked : songs;
-
-  const playStation = async (station: (typeof STATIONS)[number]) => {
-    if (loadingStation) return;
-    setLoadingStation(station.title);
-    try {
-      const result = await YtCore.search(station.query, "songs");
-      const songs: Song[] = result.items
-        .filter((i) => i.type === "song")
-        .map((i) => ({ id: i.id, title: i.title, artist: i.artist, duration: i.duration, thumbnail: i.thumbnail }));
-      if (songs.length > 0) {
-        await playQueue(songs, 0, station.title);
-      } else {
-        Alert.alert("No songs found", `Couldn't find songs for "${station.title}". Try again later.`);
-      }
-    } catch (e: any) {
-      Alert.alert("Station unavailable", e?.message ?? "Could not load this station. Check your connection.");
-    } finally {
-      setLoadingStation(null);
+  // In Rotation: your own recent + liked tracks, newest activity first.
+  // (Named honestly — this is your library rotation, not editorial picks.)
+  const editorialCuts = React.useMemo(() => {
+    const seen = new Set<string>();
+    const picks: typeof heroSongs = [];
+    for (const t of [...recent, ...liked, ...songs]) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      picks.push(t);
+      if (picks.length >= 5) break;
     }
-  };
+    return picks;
+  }, [recent, liked, songs]);
 
   const playRecent = (index: number) => {
     const queue: Song[] = recent.map((t) => ({
@@ -90,18 +82,27 @@ export default function HomeScreen() {
       >
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.greeting, { color: colors.faint }]}>Welcome back</Text>
-            <Text style={[styles.brand, { color: colors.text }]}>
-              musico<Text style={{ color: colors.accent }}>.</Text>
-            </Text>
+            <Text style={[styles.greeting, { color: colors.accent }]}>LISTENING ROOM</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+              <LogoMark size={26} />
+              <Text style={[styles.brand, { color: colors.text }]}>Musico</Text>
+            </View>
+            <Text style={[styles.homeLabel, { color: colors.muted }]}>HOME</Text>
           </View>
           <Pressable
-            onPress={() => toggleTheme(mode)}
+            onPress={() => router.push("/search")}
             style={({ pressed }) => [styles.themeBtn, { borderColor: colors.border }, pressed && { backgroundColor: colors.card }]}
             hitSlop={8}
           >
-            <Ionicons name={mode === "dark" ? "sunny-outline" : "moon-outline"} size={20} color={colors.muted} />
+            <Ionicons name="search" size={20} color={colors.muted} />
           </Pressable>
+        </View>
+
+        <View style={styles.greetingBlock}>
+          <Text style={[styles.greetingTitle, { color: colors.text }]}>{profileName ? `Good evening, ${profileName}` : "Your listening room"}</Text>
+          <Text style={[styles.greetingBody, { color: colors.muted }]}>
+            {recent.length > 0 ? "Pick up where you left off." : "Search for music to start your collection."}
+          </Text>
         </View>
 
         <Pressable
@@ -116,48 +117,21 @@ export default function HomeScreen() {
           <Text style={[styles.searchPromptText, { color: colors.faint }]}>Songs, artists, albums…</Text>
         </Pressable>
 
-        <View style={styles.quickActions}>
-          <QuickAction icon="heart" label="Liked" count={liked.length} colors={colors} onPress={() => router.push("/library/liked")} />
-          <QuickAction icon="download-outline" label="Offline" count={downloads.length} colors={colors} onPress={() => router.push("/downloads")} />
-          <QuickAction icon="library-outline" label="Library" count={songs.length} colors={colors} onPress={() => router.push("/library")} />
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Listening rooms</Text>
-          <Text style={[styles.sectionHint, { color: colors.faint }]}>Pick a mood</Text>
-        </View>
-        <FlatList
-          horizontal
-          data={STATIONS}
-          keyExtractor={(s) => s.title}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-          renderItem={({ item }) => (
+        <View style={styles.moodRow}>
+          {MOODS.map((mood) => (
             <Pressable
-              onPress={() => playStation(item)}
+              key={mood.label}
+              onPress={() => router.push({ pathname: "/search", params: { q: mood.query } })}
               style={({ pressed }) => [
-                styles.stationCard,
-                { borderColor: colors.border },
-                pressed && { transform: [{ scale: 0.97 }] },
+                styles.moodChip,
+                { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth },
+                pressed && { backgroundColor: colors.elevated },
               ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Play ${item.title}`}
             >
-              <LinearGradient colors={item.colors} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-              {loadingStation === item.title ? (
-                <ActivityIndicator color={colors.accent} style={{ flex: 1 }} />
-              ) : (
-                <>
-                  <Ionicons name="radio-outline" size={20} color={colors.accent} />
-                  <Text numberOfLines={2} style={styles.stationTitle}>{item.title}</Text>
-                  <View style={styles.stationPlay}>
-                    <Ionicons name="play" size={13} color={colors.onAccent} style={{ marginLeft: 1 }} />
-                  </View>
-                </>
-              )}
+              <Text style={[styles.moodText, { color: colors.muted }]}>{mood.label}</Text>
             </Pressable>
-          )}
-        />
+          ))}
+        </View>
 
         {heroSongs.length > 0 && (
           <View style={styles.heroSection}>
@@ -244,6 +218,61 @@ export default function HomeScreen() {
           </>
         )}
 
+        {editorialCuts.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={[styles.eyebrow, { color: colors.accent }]}>FROM YOUR LIBRARY</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text, paddingTop: 2 }]}>In Rotation</Text>
+              </View>
+              <Pressable onPress={() => router.push("/library/songs")}>
+                <Text style={[styles.seeAll, { color: colors.accent }]}>See all</Text>
+              </Pressable>
+            </View>
+            <View style={{ gap: 2 }}>
+              {editorialCuts.map((item, i) => {
+                const queue: Song[] = editorialCuts.map((t) => ({
+                  id: t.id,
+                  title: t.title,
+                  artist: t.artist,
+                  duration: t.duration,
+                  thumbnail: t.thumbnail,
+                }));
+                return (
+                  <SongRow
+                    key={item.id}
+                    song={{ id: item.id, title: item.title, artist: item.artist, duration: item.duration, thumbnail: item.thumbnail }}
+                    index={i}
+                    queue={queue}
+                    sourceName="In Rotation"
+                  />
+                );
+              })}
+              {editorialCuts.length > 0 && (
+                <Text style={[styles.badgeHint, { color: colors.faint }]}>
+                  Badges reflect your library — liked and downloaded tracks are marked in the menu.
+                </Text>
+              )}
+            </View>
+          </>
+        )}
+
+        <View style={[styles.hiresCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.hiresIcon, { backgroundColor: colors.elevated }]}>
+            <Ionicons name="stats-chart" size={22} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.hiresTitle, { color: colors.text }]}>
+              {downloads.length > 0 ? `${downloads.length} offline ${downloads.length === 1 ? "track" : "tracks"}` : "Streaming ready"}
+            </Text>
+            <Text style={[styles.hiresBody, { color: colors.muted }]}>
+              {downloads.length > 0
+                ? "Your downloads live in the Library for offline listening."
+                : "Download tracks to keep them offline in your Library."}
+            </Text>
+          </View>
+        </View>
+
         {recent.length === 0 && liked.length === 0 && songs.length === 0 && (
           <View style={styles.emptyWrap}>
             <Ionicons name="disc-outline" size={40} color={colors.faint} />
@@ -258,37 +287,6 @@ export default function HomeScreen() {
   );
 }
 
-function QuickAction({
-  icon,
-  label,
-  count,
-  colors,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  count: number;
-  colors: { card: string; elevated: string; border: string; accent: string; text: string; muted: string; faint: string };
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.quickAction,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        pressed && { backgroundColor: colors.elevated },
-      ]}
-    >
-      <Ionicons name={icon} size={18} color={colors.accent} />
-      <Text numberOfLines={1} style={[styles.quickLabel, { color: colors.text }]}>
-        {label}
-      </Text>
-      <Text style={[styles.quickCount, { color: colors.faint }]}>{count}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
@@ -299,10 +297,11 @@ const styles = StyleSheet.create({
   },
   brand: {
     fontFamily: SERIF.regular,
-    fontSize: 34,
-    lineHeight: 41,
+    fontSize: 25,
+    lineHeight: 29,
     letterSpacing: -0.5,
   },
+  homeLabel: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.2 },
   greeting: {
     fontFamily: SANS.semiBold,
     fontSize: 10,
@@ -310,6 +309,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 3,
   },
+  greetingBlock: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
+  greetingTitle: { fontFamily: SERIF.italic, fontSize: 31, lineHeight: 38 },
+  greetingBody: { fontFamily: SANS.regular, fontSize: 14, marginTop: 7 },
   themeBtn: {
     width: 40,
     height: 40,
@@ -333,29 +335,16 @@ const styles = StyleSheet.create({
     fontFamily: SANS.regular,
     fontSize: 14,
   },
-  quickActions: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  quickAction: {
-    flex: 1,
-    minHeight: 76,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 10,
-    justifyContent: "space-between",
-  },
-  quickLabel: {
-    fontFamily: SANS.semiBold,
-    fontSize: 12,
-  },
-  quickCount: {
-    fontFamily: SANS.regular,
-    fontSize: 11,
-    fontVariant: ["tabular-nums"],
-  },
+  moodList: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingTop: 12 },
+  moodChip: { height: 32, borderRadius: 16, paddingHorizontal: 14, justifyContent: "center" },
+  moodText: { fontFamily: SANS.semiBold, fontSize: 11 },
+  eyebrow: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.2, paddingHorizontal: 20 },
+  badgeHint: { fontFamily: SANS.regular, fontSize: 11, paddingHorizontal: 20, paddingTop: 8, lineHeight: 16 },
+  hiresCard: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 20, marginTop: 20, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, padding: 14 },
+  hiresIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  hiresTitle: { fontFamily: SANS.semiBold, fontSize: 14 },
+  hiresBody: { fontFamily: SANS.regular, fontSize: 12, lineHeight: 17, marginTop: 3 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "baseline",
@@ -369,11 +358,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 12,
-  },
-  sectionHint: {
-    fontFamily: SANS.regular,
-    fontSize: 12,
-    marginTop: 22,
   },
   seeAll: {
     fontFamily: SANS.semiBold,
@@ -440,34 +424,6 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stationCard: {
-    width: 146,
-    height: 146,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
-    justifyContent: "space-between",
-    overflow: "hidden",
-  },
-  stationTitle: {
-    color: "#F7F4EE",
-    fontFamily: SERIF.medium,
-    fontSize: 17,
-    lineHeight: 22,
-    maxWidth: 110,
-    paddingRight: 8,
-  },
-  stationPlay: {
-    position: "absolute",
-    right: 10,
-    bottom: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(20,19,18,0.55)",
     alignItems: "center",
     justifyContent: "center",
   },

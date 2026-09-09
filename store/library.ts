@@ -23,6 +23,7 @@ type LibraryState = {
   ready: boolean;
   theme: "dark" | "light" | null; // null = follow the system setting
   accentTheme: AccentTheme;
+  profileName: string;
   songs: TrackRecord[];
   liked: TrackRecord[];
   recent: TrackRecord[];
@@ -34,6 +35,7 @@ type LibraryState = {
   refresh: () => Promise<void>;
   toggleTheme: (current: "dark" | "light") => Promise<void>;
   setAccentTheme: (accent: AccentTheme) => Promise<void>;
+  setProfileName: (name: string) => Promise<void>;
   like: (song: Song, liked: boolean) => Promise<void>;
   newPlaylist: (name: string) => Promise<number>;
   rename: (id: number, name: string) => Promise<void>;
@@ -68,6 +70,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   ready: false,
   theme: null,
   accentTheme: "ruby",
+  profileName: "",
   songs: [],
   liked: [],
   recent: [],
@@ -80,13 +83,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const db = await openDb();
     const stored = await getSetting(db, "theme");
     const storedAccent = await getSetting(db, "accentTheme");
+    const profileName = (await getSetting(db, "profileName")) ?? "";
     const theme = stored === "light" || stored === "dark" ? stored : null;
     const accentTheme: AccentTheme =
       storedAccent === "ocean" || storedAccent === "emerald" || storedAccent === "violet" || storedAccent === "amber"
         ? storedAccent
         : "ruby";
     const data = await loadAll();
-    set({ ready: true, theme, accentTheme, ...data });
+    set({ ready: true, theme, accentTheme, profileName, ...data });
   },
 
   refresh: async () => {
@@ -105,6 +109,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ accentTheme: accent });
     const db = await openDb();
     await setSetting(db, "accentTheme", accent);
+  },
+
+  setProfileName: async (name) => {
+    const profileName = name.trim().slice(0, 40);
+    set({ profileName });
+    const db = await openDb();
+    await setSetting(db, "profileName", profileName);
   },
 
   like: async (song, liked) => {

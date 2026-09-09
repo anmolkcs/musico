@@ -147,6 +147,27 @@ export async function removeTrackFromPlaylist(db: MusicoDb, playlistId: number, 
   await db.runAsync(`DELETE FROM playlist_tracks WHERE playlistId = ? AND trackId = ?`, playlistId, trackId);
 }
 
+/**
+ * Adds many tracks atomically. If any insert fails the whole batch is
+ * rolled back, so callers never leave a half-filled playlist behind.
+ */
+export async function addTracksToPlaylist(db: MusicoDb, playlistId: number, songs: Song[]) {
+  await db.execAsync("BEGIN");
+  try {
+    for (const song of songs) {
+      await addTrackToPlaylist(db, playlistId, song);
+    }
+    await db.execAsync("COMMIT");
+  } catch (e) {
+    try {
+      await db.execAsync("ROLLBACK");
+    } catch {
+      // Rollback itself failed; surface the original error.
+    }
+    throw e;
+  }
+}
+
 export async function getPlaylist(db: MusicoDb, id: number): Promise<Playlist | null> {
   const row = await db.getFirstAsync<{ id: number; name: string; createdAt: number; count: number }>(
     `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count

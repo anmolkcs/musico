@@ -2,8 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
-import { ActivityIndicator, Alert, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import TrackPlayer, { State, usePlaybackState, useProgress } from "react-native-track-player";
@@ -12,6 +12,8 @@ import { useTheme } from "@/components/Theme";
 import { SANS, SERIF, VINYL_SHADOW } from "@/lib/theme";
 import { cycleRepeat, playNext, playPrevious, togglePlayPause, toggleShuffle } from "@/lib/player";
 import { formatDuration } from "@/lib/types";
+import type { Song } from "@/lib/types";
+import { getLyrics } from "@/lib/lyrics";
 import { useQueueStore } from "@/store/queue";
 import { useLibraryStore } from "@/store/library";
 
@@ -21,21 +23,14 @@ export default function PlayerScreen() {
   const router = useRouter();
   const playbackState = usePlaybackState();
   const { position, duration } = useProgress(500);
-  const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
-  const song = songs[index] ?? null;
-  const upNext = songs[index + 1] ?? null;
-  const liked = useLibraryStore((s) => s.liked);
+const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
+   const song = songs[index] ?? null;
+   const liked = useLibraryStore((s) => s.liked);
   const likedSet = React.useMemo(() => new Set(liked.map((t) => t.id)), [liked]);
   const like = useLibraryStore((s) => s.like);
   const [showLyrics, setShowLyrics] = useState(false);
   const [seeking, setSeeking] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
-  const [volume, setVolumeState] = useState(0.8);
-
-  React.useEffect(() => {
-    TrackPlayer.getVolume().then(setVolumeState).catch(() => {});
-  }, []);
-
   const playing = playbackState?.state === State.Playing || playbackState?.state === State.Buffering;
 
   // swipe-down to dismiss
@@ -74,48 +69,81 @@ export default function PlayerScreen() {
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
-      <View style={{ flex: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 10 }}>
-        {/* Header — dismiss, source context, lyrics */}
-        <View style={styles.topRow}>
-          <Pressable
-            hitSlop={12}
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.topButton, pressed && { backgroundColor: colors.elevated }]}
-          >
-            <Ionicons name="chevron-down" size={26} color={colors.text} />
-          </Pressable>
-          <View style={styles.sourceWrap}>
-            <Text style={[styles.sourceEyebrow, { color: colors.faint }]} numberOfLines={1}>
-              {sourceName && sourceName !== "queue"
-                ? `Playing from ${sourceLabel(sourceName) ?? "your library"}`
-                : "Now playing"}
-            </Text>
-            {sourceName && sourceName !== "queue" ? (
-              <Text numberOfLines={1} style={[styles.sourceName, { color: colors.text }]}>
-                {sourceDisplay(sourceName)}
-              </Text>
-            ) : null}
+      <View style={{ flex: 1, paddingTop: insets.top + 8 }}>
+        {showLyrics ? (
+          <View style={styles.lyricsTopRow}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.lyricsTopButton, { backgroundColor: colors.card }, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="chevron-down" size={22} color={colors.muted} />
+            </Pressable>
+            <View style={styles.lyricsHeading}>
+              <Text style={[styles.lyricsEyebrow, { color: colors.accent }]}>NOW PLAYING • LYRICS</Text>
+              <Text numberOfLines={1} style={[styles.lyricsSongTitle, { color: colors.text }]}>{song.title}</Text>
+            </View>
+            <Pressable
+              hitSlop={12}
+              onPress={() => like(song, !isLiked).catch(() => {})}
+              style={[styles.lyricsTopButton, { backgroundColor: colors.card }]}
+            >
+              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={19} color={isLiked ? colors.accent : colors.muted} />
+            </Pressable>
           </View>
-          <Pressable
-            hitSlop={12}
-            onPress={() => setShowLyrics((v) => !v)}
-            style={({ pressed }) => [
-              styles.topButton,
-              showLyrics && { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accent },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="book-outline" size={22} color={showLyrics ? colors.accent : colors.muted} />
-          </Pressable>
-        </View>
+        ) : (
+          <View style={styles.topRow}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.topButton, pressed && { backgroundColor: colors.elevated }]}
+            >
+              <Ionicons name="arrow-back" size={25} color={colors.text} />
+            </Pressable>
+            <View style={[styles.vinylMark, { backgroundColor: colors.card }]}>
+              <Ionicons name="disc-outline" size={23} color={colors.accent} />
+            </View>
+            <View style={styles.sourceWrap}>
+              <Text style={[styles.nowPlaying, { color: colors.text }]}>Now Playing</Text>
+            </View>
+            <Pressable
+              hitSlop={12}
+              onPress={() => like(song, !isLiked).catch(() => {})}
+              style={({ pressed }) => [styles.likeButton, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons
+                name={isLiked ? "heart" : "heart-outline"}
+                size={24}
+                color={isLiked ? colors.accent : colors.muted}
+              />
+            </Pressable>
+            <View style={[styles.avatar, { backgroundColor: colors.elevated }]}>
+              <Image source={{ uri: song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg` }} style={styles.avatarImage} contentFit="cover" />
+            </View>
+          </View>
+        )}
 
         {showLyrics ? (
           <View style={styles.lyricsWrap}>
             <LyricsView song={song} />
           </View>
         ) : (
-          <>
-            {/* Artwork — crisp sleeve, hairline frame, ambient shadow */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <>
+            <View style={styles.playlistContext}>
+              <View style={styles.playlistCopy}>
+                <Text style={[styles.sourceEyebrow, { color: colors.muted }]}>PLAYING FROM PLAYLIST</Text>
+                <Text numberOfLines={1} style={[styles.sourceName, { color: colors.text }]}>
+                  {sourceName && sourceName !== "queue" ? sourceDisplay(sourceName) : "Your library"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Sleeve and its tactile playback metadata */}
             <View style={styles.artWrap} pointerEvents="none">
               <View style={[styles.artFrame, VINYL_SHADOW, { borderColor: colors.border }]}>
                 <Image
@@ -125,44 +153,24 @@ export default function PlayerScreen() {
                   cachePolicy="memory-disk"
                   transition={200}
                 />
-                <View style={[styles.statusChip, { backgroundColor: "rgba(20,19,18,0.72)", borderColor: "rgba(247,244,238,0.10)" }]}>
+                <View style={[styles.statusChip, { backgroundColor: "rgba(20,19,18,0.86)", borderColor: "rgba(247,244,238,0.10)" }]}>
                   <View style={[styles.liveDot, { backgroundColor: colors.accent }]} />
-                  <Text style={[styles.statusChipText, { color: colors.text }]}>NOW PLAYING</Text>
+                  <Text style={[styles.statusChipText, { color: OVERLAY_TEXT }]}>STREAMING</Text>
+                </View>
+                <View style={[styles.artDetails, { backgroundColor: "rgba(20,19,18,0.88)" }]}>
+                  <Text numberOfLines={1} style={[styles.artTitle, { color: OVERLAY_TEXT }]}>{song.title}</Text>
+                  <Text numberOfLines={1} style={[styles.artArtist, { color: OVERLAY_SUB }]}>{song.artist || "Unknown artist"}</Text>
+                  <View style={styles.artProgress}>
+                    <View style={[styles.artProgressFill, { backgroundColor: colors.copper, width: `${Math.min(100, (position / total) * 100)}%` }]} />
+                  </View>
+                </View>
+                <View style={[styles.artAction, { backgroundColor: "rgba(20,19,18,0.92)" }]}>
+                  <Ionicons name="disc-outline" size={22} color={colors.accent} />
                 </View>
               </View>
             </View>
 
-            {/* Title block */}
-            <View style={styles.titleRow}>
-              <View style={styles.titleSide} />
-              <View style={styles.titleCenter}>
-                <Text numberOfLines={2} style={[styles.title, { color: colors.text }]}>
-                  {song.title}
-                </Text>
-                <Text numberOfLines={1} style={[styles.artist, { color: colors.muted }]}>
-                  {song.artist || "Unknown artist"}
-                </Text>
-              </View>
-              <View style={styles.titleSide}>
-                <Pressable
-                  hitSlop={12}
-                  onPress={() =>
-                    like(song, !isLiked).catch((error) =>
-                      Alert.alert("Library error", error instanceof Error ? error.message : "Could not update liked songs")
-                    )
-                  }
-                  style={({ pressed }) => [styles.likeButton, pressed && { opacity: 0.6 }]}
-                >
-                  <Ionicons
-                    name={isLiked ? "heart" : "heart-outline"}
-                    size={24}
-                    color={isLiked ? colors.accent : colors.muted}
-                  />
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Scrubber */}
+            {/* Full-width scrubber */}
             <View style={styles.seekWrap}>
               <Slider
                 style={styles.slider}
@@ -231,41 +239,130 @@ export default function PlayerScreen() {
               </Pressable>
             </View>
 
-            {/* Volume */}
-            <View style={styles.volumeRow}>
-              <Ionicons name="volume-low-outline" size={16} color={colors.faint} />
-              <Slider
-                style={styles.volume}
-                minimumValue={0}
-                maximumValue={1}
-                value={volume}
-                minimumTrackTintColor={colors.muted}
-                maximumTrackTintColor={colors.surfaceHighest}
-                thumbTintColor={colors.muted}
-                onValueChange={(v) => {
-                  setVolumeState(v);
-                  TrackPlayer.setVolume(v).catch(() => {});
-                }}
-              />
-              <Ionicons name="volume-high-outline" size={16} color={colors.faint} />
-            </View>
-
-            {/* Up next */}
-            {upNext && (
-              <View style={[styles.upNextCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.upNextLabel, { color: colors.faint }]}>UP NEXT</Text>
-                <Text numberOfLines={1} style={[styles.upNextTitle, { color: colors.text }]}>
-                  {upNext.title}
-                </Text>
-                <Text numberOfLines={1} style={[styles.upNextArtist, { color: colors.muted }]}>
-                  {upNext.artist || "Unknown artist"}
-                </Text>
-              </View>
-            )}
-          </>
+            <UpNextCard />
+            <LyricsPreviewCard song={song} onOpen={() => setShowLyrics(true)} />
+            </>
+          </ScrollView>
         )}
       </View>
     </View>
+  );
+}
+
+function UpNextCard() {
+  const { colors } = useTheme();
+  const { songs, index } = useQueueStore();
+  const next = songs[index + 1] ?? null;
+  const remaining = Math.max(0, songs.length - index - 1);
+  if (!next) {
+    return (
+      <View
+        style={[styles.destinationCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth }]}
+      >
+        <View style={[styles.destinationIcon, { backgroundColor: colors.elevated }]}>
+          <Ionicons name="checkmark" size={22} color={colors.faint} />
+        </View>
+        <View style={styles.destinationCopy}>
+          <Text style={[styles.cardEyebrow, { color: colors.muted }]}>UP NEXT</Text>
+          <Text numberOfLines={1} style={[styles.destinationTitle, { color: colors.faint }]}>
+            End of queue
+          </Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      style={[styles.destinationCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth }]}
+      onPress={() => playNext(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`Play next: ${next.title}`}
+    >
+      <View style={[styles.destinationIcon, { backgroundColor: colors.elevated }]}>
+        <Ionicons name="list-outline" size={22} color={colors.accent} />
+      </View>
+      <View style={styles.destinationCopy}>
+        <Text style={[styles.cardEyebrow, { color: colors.muted }]}>
+          UP NEXT{remaining > 1 ? ` • ${remaining} TRACKS` : ""}
+        </Text>
+        <Text numberOfLines={1} style={[styles.destinationTitle, { color: colors.text }]}>
+          {next.title} — {next.artist || "Unknown artist"}
+        </Text>
+      </View>
+      <Ionicons name="play-forward" size={20} color={colors.muted} />
+    </Pressable>
+  );
+}
+
+function LyricsPreviewCard({ song, onOpen }: { song: Song; onOpen: () => void }) {
+  const { colors } = useTheme();
+  const [preview, setPreview] = useState<string[] | null>(null);
+  const [lineCount, setLineCount] = useState<number | null>(null);
+  const [hasLyrics, setHasLyrics] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setPreview(null);
+    setLineCount(null);
+    setHasLyrics(null);
+    const current = { ...song };
+    getLyrics(current)
+      .then((result) => {
+        if (!alive) return;
+        if (result.synced && result.synced.length > 0) {
+          setPreview(result.synced.slice(0, 2).map((l) => l.text).filter(Boolean));
+          setLineCount(result.synced.length);
+          setHasLyrics(true);
+        } else if (result.plain) {
+          const lines = result.plain.split("\n").map((l) => l.trim()).filter(Boolean);
+          setPreview(lines.slice(0, 2));
+          setLineCount(lines.length);
+          setHasLyrics(true);
+        } else {
+          setHasLyrics(false);
+        }
+      })
+      .catch(() => alive && setHasLyrics(false));
+    return () => {
+      alive = false;
+    };
+    // Depend on the stable track id: queue store updates may recreate the
+    // song object on unrelated renders, which must not refetch lyrics.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song.id]);
+
+  if (hasLyrics === false) return null;
+
+  return (
+    <Pressable
+      style={[styles.lyricsCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth }]}
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel="Open full lyrics"
+    >
+      <View style={styles.lyricsHeader}>
+        <Text style={[styles.lyricsNumber, { color: colors.accent }]}>
+          {lineCount != null ? String(lineCount).padStart(2, "0") : "··"}
+        </Text>
+        <Text style={[styles.cardEyebrow, { color: colors.muted }]}>LYRICS SNEAK-PEEK</Text>
+        <View style={styles.headerSpacer} />
+        <Text style={[styles.fullLyrics, { color: colors.muted }]}>Full lyrics  ›</Text>
+      </View>
+      {preview && preview.length > 0 ? (
+        <>
+          <Text numberOfLines={2} style={[styles.lyricsQuote, { color: colors.text }]}>
+            &quot;{preview[0]}
+          </Text>
+          {preview[1] ? (
+            <Text numberOfLines={2} style={[styles.lyricsBody, { color: colors.muted }]}>
+              {preview[1]}&quot;
+            </Text>
+          ) : null}
+        </>
+      ) : (
+        <Text style={[styles.lyricsBody, { color: colors.muted }]}>Loading lyrics…</Text>
+      )}
+    </Pressable>
   );
 }
 
@@ -279,13 +376,14 @@ function CloseButton() {
   );
 }
 
-function sourceLabel(source: string): string | null {
-  return source.includes(":") ? source.split(":")[0].toUpperCase() : null;
-}
-
 function sourceDisplay(source: string): string {
   return source.includes(":") ? source.split(":").slice(1).join(":").trim() : source;
 }
+
+// Text on top of always-dark scrims/gradients (artwork overlay, status chip)
+// must be fixed ivory — theme text turns dark in light mode and vanishes.
+const OVERLAY_TEXT = "#F7F4EE";
+const OVERLAY_SUB = "#CFC8BF";
 
 const styles = StyleSheet.create({
   container: {
@@ -331,27 +429,70 @@ const styles = StyleSheet.create({
     fontFamily: SERIF.regular,
     fontSize: 17,
   },
+  nowPlaying: {
+    fontFamily: SERIF.regular,
+    fontSize: 22,
+  },
+  lyricsTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, minHeight: 52 },
+  lyricsTopButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  lyricsHeading: { flex: 1, alignItems: "center", gap: 3 },
+  lyricsEyebrow: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.05 },
+  lyricsSongTitle: { fontFamily: SANS.semiBold, fontSize: 14 },
+  vinylMark: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+  avatarImage: { width: "100%", height: "100%" },
+  playlistContext: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 34,
+    paddingTop: 17,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  playlistCopy: { flex: 1, alignItems: "center" },
   lyricsWrap: {
     flex: 1,
     marginTop: 8,
   },
   artWrap: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    paddingVertical: 16,
+    paddingHorizontal: 34,
+    paddingBottom: 18,
   },
   artFrame: {
-    flex: 1,
     width: "100%",
-    maxWidth: 460,
-    aspectRatio: 1,
-    borderRadius: 6,
+    maxWidth: 560,
+    aspectRatio: 0.98,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
     backgroundColor: "#1C1A18",
   },
+  artDetails: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 28,
+    paddingTop: 18,
+    paddingBottom: 18,
+  },
+  artTitle: { fontFamily: SANS.semiBold, fontSize: 20, textAlign: "center" },
+  artArtist: { fontFamily: SANS.regular, fontSize: 15, textAlign: "center", marginTop: 3 },
+  artProgress: { height: 4, borderRadius: 2, backgroundColor: "rgba(247,244,238,0.12)", marginTop: 17, overflow: "hidden" },
+  artProgressFill: { height: "100%", borderRadius: 2 },
+  artAction: { position: "absolute", right: 18, bottom: 18, width: 52, height: 52, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   art: {
     width: "100%",
     height: "100%",
@@ -379,39 +520,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.2,
   },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 6,
-  },
-  titleSide: {
-    width: 44,
-    alignItems: "flex-end",
-  },
-  titleCenter: {
-    flex: 1,
-    alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 6,
-  },
-  likeButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontFamily: SERIF.regular,
-    fontSize: 24,
-    lineHeight: 30,
-    textAlign: "center",
-  },
-  artist: {
-    fontFamily: SANS.semiBold,
-    fontSize: 14,
-  },
-  seekWrap: {
+seekWrap: {
     paddingHorizontal: 24,
     marginTop: 2,
   },
@@ -457,53 +566,60 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: "700",
   },
-  skipControl: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  playButton: {
+skipControl: {
+     width: 48,
+     height: 48,
+     alignItems: "center",
+     justifyContent: "center",
+   },
+   likeButton: {
+     width: 36,
+     height: 36,
+     alignItems: "center",
+     justifyContent: "center",
+   },
+   playButton: {
     width: 72,
     height: 72,
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
   },
-  volumeRow: {
+  destinationCard: {
+    marginHorizontal: 24,
+    marginTop: 28,
+    minHeight: 76,
+    borderRadius: 10,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 30,
-    paddingTop: 12,
+    gap: 13,
   },
-  volume: {
-    flex: 1,
-    height: 24,
+  destinationIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  destinationCopy: { flex: 1, gap: 4 },
+  cardEyebrow: {
+    fontFamily: SANS.semiBold,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
   },
-  upNextCard: {
+  destinationTitle: {
+    fontFamily: SANS.regular,
+    fontSize: 17,
+  },
+  lyricsCard: {
     marginHorizontal: 24,
     marginTop: 14,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 1,
+    borderRadius: 10,
+    paddingHorizontal: 26,
+    paddingVertical: 24,
   },
-  upNextLabel: {
-    fontFamily: SANS.semiBold,
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-  },
-  upNextTitle: {
-    fontFamily: SANS.semiBold,
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  upNextArtist: {
-    fontFamily: SANS.regular,
-    fontSize: 12,
-  },
+  lyricsHeader: { flexDirection: "row", alignItems: "center", gap: 9 },
+  // Explicit spacer instead of marginLeft:"auto" — auto margins in a row
+  // with gap misrender on some Android builds when clipped at the edge.
+  headerSpacer: { flex: 1 },
+  lyricsNumber: { fontFamily: SANS.bold, fontSize: 14 },
+  fullLyrics: { fontFamily: SANS.semiBold, fontSize: 13 },
+  lyricsQuote: { fontFamily: SERIF.italic, fontSize: 22, lineHeight: 30, marginTop: 24 },
+  lyricsBody: { fontFamily: SANS.regular, fontSize: 17, lineHeight: 28, marginTop: 9 },
 });

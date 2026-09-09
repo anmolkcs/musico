@@ -74,6 +74,8 @@ export default function SettingsScreen() {
   const { colors, mode } = useTheme();
   const insets = useSafeAreaInsets();
   const accentTheme = useLibraryStore((s) => s.accentTheme);
+  const profileName = useLibraryStore((s) => s.profileName);
+  const setProfileName = useLibraryStore((s) => s.setProfileName);
   const setAccentTheme = useLibraryStore((s) => s.setAccentTheme);
   const toggleTheme = useLibraryStore((s) => s.toggleTheme);
 
@@ -82,6 +84,17 @@ export default function SettingsScreen() {
       <ScreenHeader title="Settings" subtitle="Make Musico feel like yours" />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Profile</Text>
+        <Text style={[styles.sectionDescription, { color: colors.muted }]}>Choose the name shown on your home screen.</Text>
+        <TextInput
+          value={profileName}
+          onChangeText={(value) => setProfileName(value).catch(() => {})}
+          placeholder="Your name"
+          placeholderTextColor={colors.muted}
+          style={[styles.profileInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+          maxLength={40}
+          returnKeyType="done"
+        />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.row}>
             <View style={[styles.icon, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -154,6 +167,15 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
+  },
+  profileInput: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontFamily: SANS.regular,
+    fontSize: 14,
+    marginBottom: 8,
   },
   sectionTitle: {
     fontFamily: SERIF.medium,
