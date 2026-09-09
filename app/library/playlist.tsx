@@ -6,6 +6,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 import SongRow from "@/components/SongRow";
 import { Empty } from "./songs";
 import { useTheme } from "@/components/Theme";
+import { SANS } from "@/lib/theme";
 import { getPlaylist, getPlaylistTracks, openDb, removeTrackFromPlaylist } from "@/lib/db";
 import { playQueue } from "@/lib/player";
 import { Song, TrackRecord } from "@/lib/types";
@@ -68,11 +69,14 @@ export default function PlaylistScreen() {
       <ScreenHeader title={name} subtitle={`${tracks.length} ${tracks.length === 1 ? "song" : "songs"}`} />
       {tracks.length > 0 && (
         <Pressable
-          style={({ pressed }) => [styles.playBar, { backgroundColor: colors.accent }, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [
+            styles.playBar,
+            { backgroundColor: pressed ? colors.copper : colors.accent },
+          ]}
           onPress={() => play(0)}
         >
-          <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
-          <Text style={styles.playText}>Play</Text>
+          <Ionicons name="play" size={16} color={colors.onAccent} style={{ marginLeft: 2 }} />
+          <Text style={[styles.playText, { color: colors.onAccent }]}>Play all</Text>
         </Pressable>
       )}
       {tracks.length === 0 ? (
@@ -108,16 +112,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 22,
-    paddingVertical: 11,
-    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 8,
     alignSelf: "flex-start",
   },
   playText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
+    fontFamily: SANS.semiBold,
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
 });

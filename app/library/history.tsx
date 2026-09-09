@@ -5,6 +5,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 import SongRow from "@/components/SongRow";
 import { Empty } from "./songs";
 import { useTheme } from "@/components/Theme";
+import { SANS } from "@/lib/theme";
 import { clearHistory, getHistoryEntries, openDb } from "@/lib/db";
 import { playQueue } from "@/lib/player";
 import { Song, TrackRecord } from "@/lib/types";
@@ -90,7 +91,9 @@ export default function HistoryScreen() {
               sourceName="History"
               onPress={() => play(index)}
               trailing={
-                <Text style={{ color: colors.muted, fontSize: 12, marginRight: 6 }}>{timeAgo(item.playedAt)}</Text>
+                <Text style={{ color: colors.faint, fontFamily: SANS.regular, fontSize: 12, marginRight: 6 }}>
+                  {timeAgo(item.playedAt)}
+                </Text>
               }
             />
           )}

@@ -5,6 +5,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenHeader from "@/components/ScreenHeader";
 import { Empty } from "./songs";
 import { useTheme } from "@/components/Theme";
+import { SANS } from "@/lib/theme";
 import { useLibraryStore } from "@/store/library";
 
 export default function ArtistsScreen() {
@@ -46,7 +47,7 @@ export default function ArtistsScreen() {
                   {item.count} {item.count === 1 ? "song" : "songs"}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              <Ionicons name="chevron-forward" size={18} color={colors.faint} />
             </Pressable>
           )}
         />
@@ -59,22 +60,26 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    minHeight: 68,
   },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(247,244,238,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
   name: {
+    fontFamily: SANS.semiBold,
     fontSize: 15,
-    fontWeight: "600",
   },
   count: {
-    fontSize: 13,
+    fontFamily: SANS.regular,
+    fontSize: 12,
   },
 });

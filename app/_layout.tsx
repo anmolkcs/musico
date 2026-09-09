@@ -3,15 +3,30 @@ import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { View } from "react-native";
+import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import TrackPlayer from "react-native-track-player";
 import { PlaybackService, setupPlayer } from "@/lib/player";
 import { useLibraryStore } from "@/store/library";
 import { useDownloadsStore } from "@/lib/downloads";
+import { themeFor } from "@/lib/theme";
+import {
+  Newsreader_400Regular,
+  Newsreader_400Regular_Italic,
+  Newsreader_500Medium,
+  Newsreader_500Medium_Italic,
+  Newsreader_600SemiBold,
+} from "@expo-google-fonts/newsreader";
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from "@expo-google-fonts/plus-jakarta-sans";
 import TrackMenu from "@/components/TrackMenu";
 import MiniPlayer from "@/components/MiniPlayer";
 import { ThemeProvider as MusicoThemeProvider, useEffectiveThemeMode } from "@/components/Theme";
-import { themeFor } from "@/lib/theme";
 
 // Register the RNTP playback service (also runs in the headless context)
 TrackPlayer.registerPlaybackService(() => PlaybackService);
@@ -20,16 +35,34 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
   const theme = useEffectiveThemeMode();
   const accentTheme = useLibraryStore((s) => s.accentTheme);
-  const accent = themeFor(theme, accentTheme).accent;
+  const colors = themeFor(theme, accentTheme);
   const pathname = usePathname();
   const showMiniPlayer =
     pathname !== "/player" &&
     !pathname.startsWith("/player/") &&
     pathname !== "/downloads" &&
     pathname !== "/settings";
+
+  const [fontsLoaded] = useFonts({
+    Newsreader_400Regular,
+    Newsreader_400Regular_Italic,
+    Newsreader_500Medium,
+    Newsreader_500Medium_Italic,
+    Newsreader_600SemiBold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
 
   useEffect(() => {
     (async () => {
@@ -55,12 +88,28 @@ export default function RootLayout() {
     theme === "dark"
       ? {
           ...DarkTheme,
-          colors: { ...DarkTheme.colors, background: "#0B0B0F", card: "#17171D", primary: accent },
+          colors: {
+            ...DarkTheme.colors,
+            background: colors.background,
+            card: colors.card,
+            primary: colors.accent,
+            text: colors.text,
+            border: colors.border,
+          },
         }
       : {
           ...DefaultTheme,
-          colors: { ...DefaultTheme.colors, background: "#F6F6F9", card: "#FFFFFF", primary: accent },
+          colors: {
+            ...DefaultTheme.colors,
+            background: colors.background,
+            card: colors.card,
+            primary: colors.accent,
+            text: colors.text,
+            border: colors.border,
+          },
         };
+
+  if (!fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>

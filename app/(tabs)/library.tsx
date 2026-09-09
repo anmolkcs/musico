@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/components/Theme";
+import { SERIF, SANS } from "@/lib/theme";
 import { useLibraryStore } from "@/store/library";
 
 type Row = {
@@ -16,7 +17,6 @@ type Row = {
 export default function LibraryScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const router = useRouter();
   const { songs, liked, playlists, artists, downloads, historyCount } = useLibraryStore();
 
@@ -28,19 +28,22 @@ export default function LibraryScreen() {
     { icon: "download", label: "Downloads", count: downloads.length, route: "/downloads" },
     { icon: "time", label: "History", count: historyCount, route: "/library/history" },
   ];
-  const tileSize = Math.min(160, Math.max(96, Math.floor((width - 56) / 3)));
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 8 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
         <View style={styles.headingRow}>
           <View>
-            <Text style={[styles.eyebrow, { color: colors.muted }]}>YOUR COLLECTION</Text>
+            <Text style={[styles.eyebrow, { color: colors.faint }]}>YOUR COLLECTION</Text>
             <Text style={[styles.title, { color: colors.text }]}>Library</Text>
           </View>
           <Pressable
             onPress={() => router.push("/settings")}
-            style={({ pressed }) => [styles.settingsButton, { backgroundColor: colors.card }, pressed && { backgroundColor: colors.elevated }]}
+            style={({ pressed }) => [
+              styles.settingsButton,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              pressed && { backgroundColor: colors.elevated },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Open settings"
           >
@@ -52,7 +55,7 @@ export default function LibraryScreen() {
             <Pressable
               key={row.label}
               style={({ pressed }) => [
-                [styles.tile, { width: tileSize, height: tileSize }],
+                styles.tile,
                 { backgroundColor: colors.card, borderColor: colors.border },
                 pressed && { backgroundColor: colors.elevated, transform: [{ scale: 0.98 }] },
               ]}
@@ -76,7 +79,7 @@ export default function LibraryScreen() {
                 android_ripple={{ color: colors.border }}
                 onPress={() => router.push({ pathname: "/library/playlist", params: { id: String(p.id) } })}
               >
-                <View style={[styles.plIcon, { backgroundColor: colors.elevated }]}>
+                <View style={[styles.plIcon, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Ionicons name="musical-notes" size={20} color={colors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -87,7 +90,7 @@ export default function LibraryScreen() {
                     {p.count} {p.count === 1 ? "song" : "songs"}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                <Ionicons name="chevron-forward" size={18} color={colors.faint} />
               </Pressable>
             ))}
           </>
@@ -99,12 +102,14 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   title: {
-    fontSize: 30,
-    fontWeight: "800",
+    fontFamily: SERIF.regular,
+    fontSize: 32,
+    lineHeight: 39,
+    letterSpacing: -0.5,
     paddingBottom: 14,
   },
   headingRow: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -113,62 +118,68 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },
   eyebrow: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    marginBottom: 3,
+    fontFamily: SANS.semiBold,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    marginBottom: 4,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 20,
+    gap: 10,
   },
   tile: {
-    flexGrow: 0,
-    flexShrink: 0,
-    borderRadius: 16,
-    borderWidth: 1,
+    width: "30.5%",
+    flexGrow: 1,
+    aspectRatio: 1,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: 12,
     justifyContent: "space-between",
   },
   tileLabel: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontFamily: SANS.semiBold,
+    fontSize: 14,
   },
   tileCount: {
-    fontSize: 13,
+    fontFamily: SANS.regular,
+    fontSize: 12,
+    fontVariant: ["tabular-nums"],
   },
   section: {
-    fontSize: 20,
-    fontWeight: "700",
-    paddingHorizontal: 16,
-    paddingTop: 22,
-    paddingBottom: 6,
+    fontFamily: SERIF.medium,
+    fontSize: 19,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 8,
   },
   plRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 8,
   },
   plIcon: {
     width: 44,
     height: 44,
-    borderRadius: 10,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },
   plName: {
+    fontFamily: SANS.semiBold,
     fontSize: 15,
-    fontWeight: "600",
   },
   plCount: {
-    fontSize: 13,
+    fontFamily: SANS.regular,
+    fontSize: 12,
   },
 });

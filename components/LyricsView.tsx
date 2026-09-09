@@ -4,6 +4,7 @@ import TrackPlayer, { useProgress } from "react-native-track-player";
 import { getLyrics } from "../lib/lyrics";
 import { activeLineIndex, LyricLine } from "../lib/lrc";
 import { Song } from "../lib/types";
+import { SERIF } from "../lib/theme";
 import { useTheme } from "./Theme";
 
 type Props = { song: Song };
@@ -123,7 +124,7 @@ export default function LyricsView({ song }: Props) {
               numberOfLines={2}
               style={[
                 styles.line,
-                { color: active ? colors.text : colors.muted, fontWeight: active ? "800" : "500" },
+                { color: active ? colors.text : colors.faint, fontFamily: active ? SERIF.medium : SERIF.regular },
               ]}
             >
               {item.text || "···"}
@@ -143,19 +144,21 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   emptyText: {
-    fontSize: 15,
+    fontFamily: SERIF.italic,
+    fontSize: 16,
   },
   plainWrap: {
     flex: 1,
     padding: 24,
   },
   plainText: {
-    fontSize: 17,
-    lineHeight: 28,
+    fontFamily: SERIF.regular,
+    fontSize: 19,
+    lineHeight: 30,
   },
   line: {
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 21,
+    lineHeight: 30,
     textAlign: "center",
     paddingHorizontal: 28,
   },

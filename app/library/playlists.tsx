@@ -6,6 +6,7 @@ import PromptModal from "@/components/PromptModal";
 import ScreenHeader from "@/components/ScreenHeader";
 import { Empty } from "./songs";
 import { useTheme } from "@/components/Theme";
+import { SANS } from "@/lib/theme";
 import { useLibraryStore } from "@/store/library";
 
 type Mode = { kind: "none" } | { kind: "create" } | { kind: "rename"; id: number; name: string };
@@ -75,7 +76,7 @@ export default function PlaylistsScreen() {
                   {item.count} {item.count === 1 ? "song" : "songs"}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              <Ionicons name="chevron-forward" size={18} color={colors.faint} />
             </Pressable>
           )}
         />
@@ -98,22 +99,24 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    minHeight: 68,
   },
   icon: {
     width: 48,
     height: 48,
-    borderRadius: 10,
+    borderRadius: 4,
     alignItems: "center",
     justifyContent: "center",
   },
   name: {
+    fontFamily: SANS.semiBold,
     fontSize: 15,
-    fontWeight: "600",
   },
   count: {
-    fontSize: 13,
+    fontFamily: SANS.regular,
+    fontSize: 12,
   },
 });

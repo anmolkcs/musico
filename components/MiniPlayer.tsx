@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackState, State, useProgress } from "react-native-track-player";
 import { artworkFor } from "../lib/types";
+import { SANS } from "../lib/theme";
 import { playNext, togglePlayPause } from "../lib/player";
 import { useTheme } from "./Theme";
 import { useQueueStore } from "../store/queue";
@@ -25,47 +26,48 @@ export default function MiniPlayer() {
   if (!displayTrack) return null;
 
   return (
-    <View style={[styles.wrap, { bottom: 56 + insets.bottom }]} pointerEvents="box-none">
-      <View style={[styles.bar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.wrap, { bottom: 64 + insets.bottom }]} pointerEvents="box-none">
+      <Pressable
+        style={[styles.bar, { backgroundColor: colors.tabBar, borderColor: colors.border }]}
+        onPress={() => router.push("/player")}
+      >
         <View style={styles.progressTrack}>
           <MiniProgress color={colors.accent} />
         </View>
-        <Pressable style={styles.trackTarget} onPress={() => router.push("/player")}>
-          <Image
-            source={{ uri: artwork ?? artworkFor(String(displayTrack.id)) }}
-            style={styles.art}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-          />
-          <View style={styles.meta}>
-            <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
-              {displayTrack.title}
-            </Text>
-            <Text numberOfLines={1} style={[styles.artist, { color: colors.muted }]}>
-              {displayTrack.artist}
-            </Text>
-          </View>
-        </Pressable>
+        <Image
+          source={{ uri: artwork ?? artworkFor(String(displayTrack.id)) }}
+          style={[styles.art, { backgroundColor: colors.elevated }]}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+        <View style={styles.meta}>
+          <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
+            {displayTrack.title}
+          </Text>
+          <Text numberOfLines={1} style={[styles.artist, { color: colors.muted }]}>
+            {displayTrack.artist}
+          </Text>
+        </View>
         <Pressable
           onPress={togglePlayPause}
           hitSlop={12}
-          style={[styles.button, { backgroundColor: colors.elevated }]}
+          style={({ pressed }) => [styles.playButton, { backgroundColor: colors.accent }, pressed && { opacity: 0.85 }]}
         >
           {loading ? (
-            <ActivityIndicator size="small" color={colors.text} />
+            <ActivityIndicator size="small" color={colors.onAccent} />
           ) : (
             <Ionicons
               name={playing ? "pause" : "play"}
-              size={22}
-              color={colors.text}
+              size={20}
+              color={colors.onAccent}
               style={playing ? undefined : styles.playIcon}
             />
           )}
         </Pressable>
-        <Pressable onPress={() => playNext(false)} hitSlop={12} style={styles.button}>
-          <Ionicons name="play-forward" size={22} color={colors.text} />
+        <Pressable onPress={() => playNext(false)} hitSlop={12} style={styles.nextButton}>
+          <Ionicons name="play-forward" size={22} color={colors.muted} />
         </Pressable>
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -79,29 +81,24 @@ function MiniProgress({ color }: { color: string }) {
 const styles = StyleSheet.create({
   wrap: {
     position: "absolute",
-    left: 10,
-    right: 10,
+    left: 12,
+    right: 12,
   },
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
+    gap: 12,
+    borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingLeft: 8,
+    paddingRight: 6,
     overflow: "hidden",
-    elevation: 6,
+    elevation: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  trackTarget: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
   },
   progressTrack: {
     position: "absolute",
@@ -116,21 +113,23 @@ const styles = StyleSheet.create({
   art: {
     width: 44,
     height: 44,
-    borderRadius: 8,
-    backgroundColor: "#2A2A33",
+    borderRadius: 4,
   },
   meta: {
     flex: 1,
-    gap: 1,
+    gap: 2,
   },
   title: {
+    fontFamily: SANS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
+    lineHeight: 18,
   },
   artist: {
+    fontFamily: SANS.regular,
     fontSize: 12,
+    lineHeight: 15,
   },
-  button: {
+  playButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -139,5 +138,11 @@ const styles = StyleSheet.create({
   },
   playIcon: {
     marginLeft: 2,
+  },
+  nextButton: {
+    width: 36,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

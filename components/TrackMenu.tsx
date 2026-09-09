@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SERIF, SANS } from "../lib/theme";
 import { useTheme } from "./Theme";
 import { useTrackMenu } from "../store/menu";
 import { useLibraryStore } from "../store/library";
@@ -151,7 +152,8 @@ export default function TrackMenu() {
   return (
     <Modal transparent visible animationType="fade" onRequestClose={close}>
       <Pressable style={styles.backdrop} onPress={close} />
-      <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.sheet, { backgroundColor: colors.elevated, paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.grabber, { backgroundColor: colors.borderStrong }]} />
         {mode === "options" && (
           <>
             <View style={styles.header}>
@@ -165,7 +167,7 @@ export default function TrackMenu() {
             {options.map((opt) => (
               <Pressable
                 key={opt.label}
-                style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.elevated }]}
+                style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceHighest }]}
                 android_ripple={{ color: colors.border }}
                 onPress={opt.onPress}
               >
@@ -180,7 +182,7 @@ export default function TrackMenu() {
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Add to playlist</Text>
             <Pressable
-              style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.elevated }]}
+              style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceHighest }]}
               onPress={() => setMode("new")}
             >
               <Ionicons name="add" size={22} color={colors.accent} />
@@ -189,7 +191,7 @@ export default function TrackMenu() {
             {playlists.map((p) => (
               <Pressable
                 key={p.id}
-                style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.elevated }]}
+                style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceHighest }]}
                 onPress={() => addToPlaylist(p.id, p.name)}
               >
                 <Ionicons name="musical-notes-outline" size={22} color={colors.text} />
@@ -213,7 +215,7 @@ export default function TrackMenu() {
               onChangeText={setName}
               placeholder="Playlist name"
               placeholderTextColor={colors.muted}
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.elevated }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
               onSubmitEditing={handleNewPlaylist}
               returnKeyType="done"
             />
@@ -222,7 +224,7 @@ export default function TrackMenu() {
                 <Text style={{ color: colors.text }}>Cancel</Text>
               </Pressable>
               <Pressable style={[styles.button, { backgroundColor: colors.accent }]} onPress={handleNewPlaylist}>
-                <Text style={{ color: "#fff", fontWeight: "600" }}>Create</Text>
+                <Text style={{ color: colors.onAccent, fontFamily: SANS.semiBold }}>Create</Text>
               </Pressable>
             </View>
           </>
@@ -235,7 +237,7 @@ export default function TrackMenu() {
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(10,9,8,0.62)",
   },
   sheet: {
     position: "absolute",
@@ -245,48 +247,60 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 8,
-    paddingTop: 16,
+    paddingTop: 10,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 12,
   },
   header: {
     paddingHorizontal: 12,
-    paddingBottom: 8,
+    paddingBottom: 10,
     gap: 2,
   },
   title: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontFamily: SERIF.medium,
+    fontSize: 17,
+    lineHeight: 23,
   },
   subtitle: {
+    fontFamily: SANS.regular,
     fontSize: 13,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingVertical: 14,
+    paddingVertical: 13,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 8,
   },
   rowLabel: {
-    fontSize: 16,
+    fontFamily: SANS.regular,
+    fontSize: 15,
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontFamily: SERIF.medium,
+    fontSize: 18,
     paddingHorizontal: 12,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
   empty: {
     paddingHorizontal: 12,
     paddingVertical: 16,
+    fontFamily: SANS.regular,
     fontSize: 14,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 6,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 44,
+    fontFamily: SANS.regular,
     fontSize: 15,
     marginHorizontal: 12,
   },
@@ -298,7 +312,9 @@ const styles = StyleSheet.create({
   },
   button: {
     paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
+    height: 40,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SERIF } from "../lib/theme";
 import { useTheme } from "./Theme";
 
 export default function ScreenHeader({
@@ -25,16 +26,20 @@ export default function ScreenHeader({
       <Pressable
         hitSlop={10}
         onPress={onBack ?? (() => router.back())}
-        style={({ pressed }) => [styles.back, pressed && { backgroundColor: colors.elevated }]}
+        style={({ pressed }) => [
+          styles.back,
+          { borderColor: colors.border },
+          pressed && { backgroundColor: colors.elevated },
+        ]}
       >
-        <Ionicons name="chevron-back" size={26} color={colors.text} />
+        <Ionicons name="chevron-back" size={22} color={colors.text} />
       </Pressable>
       <View style={{ flex: 1 }}>
         <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
           {title}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={1} style={[styles.subtitle, { color: colors.muted }]}>
+          <Text numberOfLines={1} style={[styles.subtitle, { color: colors.faint }]}>
             {subtitle}
           </Text>
         ) : null}
@@ -48,9 +53,9 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingBottom: 10,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   back: {
     width: 38,
@@ -58,12 +63,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 19,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontFamily: SERIF.medium,
+    fontSize: 23,
+    lineHeight: 29,
   },
   subtitle: {
+    fontFamily: SERIF.regular,
     fontSize: 13,
+    lineHeight: 17,
   },
 });

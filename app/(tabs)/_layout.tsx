@@ -1,8 +1,9 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { SANS } from "@/lib/theme";
 import { useTheme } from "@/components/Theme";
 
 function TabBarBackground() {
@@ -16,9 +17,9 @@ function TabBarBackground() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 56 + insets.bottom,
+        height: 60 + insets.bottom,
         backgroundColor: colors.tabBar,
-        borderTopWidth: 0.5,
+        borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: colors.border,
       }}
     />
@@ -35,15 +36,20 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.accent,
-          tabBarInactiveTintColor: colors.muted,
+          tabBarInactiveTintColor: colors.faint,
+          tabBarLabelStyle: {
+            fontFamily: SANS.semiBold,
+            fontSize: 10,
+            letterSpacing: 0.5,
+          },
           tabBarStyle: {
             position: "absolute",
             borderTopWidth: 0,
             backgroundColor: "transparent",
             elevation: 0,
-            height: 56 + insets.bottom,
+            height: 60 + insets.bottom,
             paddingBottom: insets.bottom,
-            paddingTop: 4,
+            paddingTop: 6,
           },
           tabBarBackground: () => <TabBarBackground />,
           sceneStyle: { backgroundColor: colors.background },
@@ -53,21 +59,25 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? "disc" : "disc-outline"} size={22} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="search"
           options={{
             title: "Search",
-            tabBarIcon: ({ color }) => <Ionicons name="search" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <Ionicons name="search" size={21} color={color} />,
           }}
         />
         <Tabs.Screen
           name="library"
           options={{
             title: "Library",
-            tabBarIcon: ({ color }) => <Ionicons name="library" size={24} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? "library" : "library-outline"} size={21} color={color} />
+            ),
           }}
         />
       </Tabs>

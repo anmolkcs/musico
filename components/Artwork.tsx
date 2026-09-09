@@ -18,7 +18,7 @@ export default function Artwork({ song, size, radius = 8, style }: Props) {
           width: size,
           height: size,
           borderRadius: radius,
-          backgroundColor: "#2A2A33",
+          backgroundColor: "#262320",
           overflow: "hidden",
         },
         style,

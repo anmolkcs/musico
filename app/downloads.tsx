@@ -8,6 +8,7 @@ import { useLibraryStore } from "@/store/library";
 import { playQueue } from "@/lib/player";
 import { Song } from "@/lib/types";
 import { useDownloadsStore } from "@/lib/downloads";
+import { SERIF, SANS } from "@/lib/theme";
 
 export default function DownloadsScreen() {
   const { colors } = useTheme();
@@ -94,14 +95,14 @@ function ActiveRow({
 }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.row, { paddingHorizontal: 16 }]}>
+    <View style={[styles.row, { paddingHorizontal: 20, borderBottomColor: colors.border }]}>
       <Artwork song={song} size={48} />
       <View style={{ flex: 1, gap: 5 }}>
         <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
           {song.title}
         </Text>
         {status === "downloading" ? (
-          <View style={styles.progressTrack}>
+          <View style={[styles.progressTrack, { backgroundColor: colors.surfaceHighest }]}>
             <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: colors.accent }]} />
           </View>
         ) : (
@@ -120,8 +121,8 @@ function ActiveRow({
 function DoneRow({ song, onPlay, onDelete }: { song: Song; onPlay: () => void; onDelete: () => void }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.row}>
-      <Pressable style={[styles.row, { flex: 1, paddingHorizontal: 0 }]} onPress={onPlay}>
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <Pressable style={[styles.row, { flex: 1, paddingHorizontal: 0, borderBottomWidth: 0 }]} onPress={onPlay}>
         <Artwork song={song} size={48} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
@@ -149,35 +150,39 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   empty: {
-    fontSize: 14,
+    fontFamily: SERIF.italic,
+    fontSize: 15,
     textAlign: "center",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    height: 64,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    minHeight: 68,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(247,244,238,0.08)",
   },
   title: {
+    fontFamily: SANS.semiBold,
     fontSize: 15,
-    fontWeight: "500",
   },
   artist: {
+    fontFamily: SANS.regular,
     fontSize: 13,
   },
   errorText: {
+    fontFamily: SANS.regular,
     fontSize: 12,
   },
   progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#3A3A44",
+    height: 3,
+    borderRadius: 1.5,
     overflow: "hidden",
   },
   progressFill: {
-    height: 4,
-    borderRadius: 2,
+    height: 3,
+    borderRadius: 1.5,
   },
 });

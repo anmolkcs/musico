@@ -3,6 +3,7 @@ import React from "react";
 import { Alert, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import Artwork from "./Artwork";
 import { formatDuration, Song } from "../lib/types";
+import { SANS } from "../lib/theme";
 import { playQueue } from "../lib/player";
 import { useTrackMenu } from "../store/menu";
 import { useTheme } from "./Theme";
@@ -54,13 +55,13 @@ export default function SongRow({
       android_ripple={{ color: colors.border }}
       style={({ pressed }) => [
         styles.row,
-        { paddingHorizontal: dense ? 12 : 16, borderBottomColor: colors.border },
-        pressed && { backgroundColor: colors.elevated },
+        { paddingHorizontal: dense ? 12 : 20, borderBottomColor: colors.border },
+        pressed && { backgroundColor: colors.card },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`${song.title}${song.artist ? ` by ${song.artist}` : ""}`}
     >
-      <Artwork song={song} size={size} radius={dense ? 6 : 8} />
+      <Artwork song={song} size={size} radius={4} />
       <View style={styles.meta}>
         <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
           {song.title}
@@ -72,7 +73,7 @@ export default function SongRow({
         )}
       </View>
       {song.duration > 0 && !trailing && (
-        <Text style={[styles.duration, { color: colors.muted }]}>{formatDuration(song.duration)}</Text>
+        <Text style={[styles.duration, { color: colors.faint }]}>{formatDuration(song.duration)}</Text>
       )}
       {trailing}
       {!trailing && (
@@ -84,7 +85,7 @@ export default function SongRow({
           }}
           style={styles.more}
         >
-          <Ionicons name="ellipsis-vertical" size={16} color={colors.muted} />
+          <Ionicons name="ellipsis-vertical" size={16} color={colors.faint} />
         </Pressable>
       )}
     </Pressable>
@@ -99,7 +100,7 @@ export function SongRowSkeleton({ dense = false }: { dense?: boolean }) {
       accessibilityLabel="Loading song"
       style={[
         styles.row,
-        { paddingHorizontal: dense ? 12 : 16, borderBottomColor: colors.border },
+        { paddingHorizontal: dense ? 12 : 20, borderBottomColor: colors.border },
       ]}
     >
       <View style={[styles.skeletonArt, { width: size, height: size, backgroundColor: colors.elevated }]} />
@@ -116,28 +117,28 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 72,
-    paddingVertical: 8,
-    gap: 12,
+    minHeight: 68,
+    paddingVertical: 10,
+    gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  index: {
-    fontSize: 14,
-    fontWeight: "600",
   },
   meta: {
     flex: 1,
     gap: 2,
   },
   title: {
+    fontFamily: SANS.semiBold,
     fontSize: 15,
-    fontWeight: "600",
+    lineHeight: 20,
   },
   artist: {
+    fontFamily: SANS.regular,
     fontSize: 13,
+    lineHeight: 17,
   },
   duration: {
-    fontSize: 13,
+    fontFamily: SANS.regular,
+    fontSize: 12,
     fontVariant: ["tabular-nums"],
   },
   more: {
@@ -145,17 +146,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   skeletonArt: {
-    borderRadius: 8,
+    borderRadius: 4,
   },
   skeletonTitle: {
     width: "72%",
     height: 14,
-    borderRadius: 5,
+    borderRadius: 4,
   },
   skeletonArtist: {
     width: "48%",
     height: 12,
-    borderRadius: 5,
+    borderRadius: 4,
     marginTop: 7,
   },
   skeletonMore: {

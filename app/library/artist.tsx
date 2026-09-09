@@ -6,6 +6,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 import SongRow from "@/components/SongRow";
 import { Empty } from "./songs";
 import { useTheme } from "@/components/Theme";
+import { SERIF, SANS } from "@/lib/theme";
 import { getTracksByArtist, openDb } from "@/lib/db";
 import { playQueue } from "@/lib/player";
 import { Song, TrackRecord } from "@/lib/types";
@@ -113,7 +114,7 @@ export default function ArtistScreen() {
                 <View style={styles.artistImage} />
               )}
       <View style={styles.artistCopy}>
-        <Text style={[styles.artistEyebrow, { color: colors.accent }]}>ARTIST</Text>
+        <Text style={[styles.artistEyebrow, { color: colors.faint }]}>ARTIST</Text>
         <Text numberOfLines={2} style={[styles.artistName, { color: colors.text }]}>
           {name ?? "Unknown artist"}
         </Text>
@@ -140,11 +141,14 @@ export default function ArtistScreen() {
     )}
     {tracks.length > 0 && (
         <Pressable
-          style={({ pressed }) => [styles.playBar, { backgroundColor: colors.accent }, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [
+            styles.playBar,
+            { backgroundColor: pressed ? colors.copper : colors.accent },
+          ]}
           onPress={() => play(0)}
         >
-          <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
-          <Text style={styles.playText}>Play</Text>
+          <Ionicons name="play" size={16} color={colors.onAccent} style={{ marginLeft: 2 }} />
+          <Text style={[styles.playText, { color: colors.onAccent }]}>Play all</Text>
         </Pressable>
       )}
           </>
@@ -157,7 +161,7 @@ export default function ArtistScreen() {
               <Ionicons name="cloud-offline-outline" size={34} color={colors.muted} />
               <Text style={[styles.emptyText, { color: colors.muted }]}>{error}</Text>
               <Pressable onPress={() => setRetry((value) => value + 1)} style={[styles.retryButton, { backgroundColor: colors.accent }]}>
-                <Text style={styles.playText}>Retry</Text>
+                <Text style={[styles.playText, { color: colors.onAccent }]}>Retry</Text>
               </Pressable>
             </View>
           ) : <Empty colors={colors} text="No songs for this artist yet" icon="person-outline" />
@@ -175,86 +179,93 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 22,
-    paddingVertical: 11,
-    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 8,
     alignSelf: "flex-start",
   },
   artistHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginBottom: 12,
     padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(128,128,128,0.08)",
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(247,244,238,0.08)",
   },
   artistImage: {
     width: 76,
     height: 76,
-    borderRadius: 38,
-    backgroundColor: "#2A2A33",
+    borderRadius: 4,
+    backgroundColor: "#262320",
   },
   artistCopy: {
     flex: 1,
     gap: 4,
   },
   artistEyebrow: {
+    fontFamily: SANS.semiBold,
     fontSize: 10,
-    fontWeight: "800",
     letterSpacing: 1.3,
   },
   artistName: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontFamily: SERIF.medium,
+    fontSize: 22,
+    lineHeight: 28,
   },
   artistMeta: {
+    fontFamily: SANS.regular,
     fontSize: 12,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 12,
     padding: 24,
   },
   retryButton: {
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyText: {
+    fontFamily: SANS.regular,
     textAlign: "center",
     fontSize: 14,
   },
   bio: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginHorizontal: 16,
+    fontFamily: SERIF.regular,
+    fontSize: 14,
+    lineHeight: 22,
+    marginHorizontal: 20,
     marginBottom: 10,
   },
   tags: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 7,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginBottom: 10,
   },
   tag: {
-    borderRadius: 999,
+    borderRadius: 4,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   tagText: {
+    fontFamily: SANS.semiBold,
     fontSize: 11,
-    fontWeight: "600",
   },
   playText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
+    fontFamily: SANS.semiBold,
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
 });

@@ -13,6 +13,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SongRow, { SongRowSkeleton } from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";
+import { SERIF, SANS } from "@/lib/theme";
 import { Song } from "@/lib/types";
 import YtCore, { SearchResultItem } from "@/modules/yt-core";
 
@@ -34,6 +35,7 @@ export default function SearchScreen() {
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
 
@@ -86,7 +88,12 @@ export default function SearchScreen() {
         <Text style={[styles.helper, { color: colors.muted }]}>Find your next favorite song</Text>
       </View>
       <View style={styles.searchBarWrap}>
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.searchBar,
+            { backgroundColor: colors.card, borderColor: inputFocused ? colors.accent : colors.border },
+          ]}
+        >
           <Ionicons name="search" size={18} color={colors.muted} />
           <TextInput
             value={query}
@@ -97,6 +104,8 @@ export default function SearchScreen() {
             returnKeyType="search"
             onSubmitEditing={Keyboard.dismiss}
             autoCorrect={false}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
           />
           {query.length > 0 && (
             <Pressable hitSlop={8} onPress={() => setQuery("")}>
@@ -115,11 +124,20 @@ export default function SearchScreen() {
               onPress={() => setFilter(f.key)}
               style={[
                 styles.chip,
-                { backgroundColor: active ? colors.accent : colors.card, borderColor: active ? colors.accent : colors.border },
-                active && styles.activeChip,
+                {
+                  backgroundColor: active ? colors.accentSoft : colors.card,
+                  borderColor: active ? colors.accent : colors.border,
+                },
               ]}
             >
-              <Text style={{ color: active ? "#fff" : colors.text, fontWeight: active ? "700" : "500", fontSize: 13 }}>
+              <Text
+                style={{
+                  color: active ? colors.text : colors.muted,
+                  fontFamily: SANS.semiBold,
+                  fontSize: 12,
+                  letterSpacing: 0.3,
+                }}
+              >
                 {f.label}
               </Text>
             </Pressable>
@@ -196,54 +214,52 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   searchBarWrap: {
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   searchHeading: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 14,
   },
   heading: {
-    fontSize: 30,
-    fontWeight: "800",
+    fontFamily: SERIF.regular,
+    fontSize: 32,
+    lineHeight: 39,
+    letterSpacing: -0.5,
   },
   helper: {
-    fontSize: 13,
+    fontFamily: SERIF.regular,
+    fontSize: 14,
     marginTop: 2,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    borderRadius: 12,
+    borderRadius: 6,
     borderWidth: 1,
     paddingHorizontal: 12,
     height: 44,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontFamily: SANS.regular,
+    fontSize: 15,
     paddingVertical: 0,
   },
   filters: {
     flexDirection: "row",
     gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    height: 28,
+    borderRadius: 4,
     borderWidth: 1,
-    overflow: "hidden",
-  },
-  activeChip: {
-    shadowColor: "#000",
-    shadowOpacity: 0.16,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   center: {
     flex: 1,
@@ -252,6 +268,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   errorText: {
+    fontFamily: SANS.regular,
     fontSize: 14,
     textAlign: "center",
   },

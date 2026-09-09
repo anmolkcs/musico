@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { SERIF, SANS } from "../lib/theme";
 import { useTheme } from "./Theme";
 
 type Props = {
@@ -32,7 +33,7 @@ export default function PromptModal({
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable style={[styles.card, { backgroundColor: colors.card }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.card, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
           <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
           <TextInput
             autoFocus
@@ -42,20 +43,28 @@ export default function PromptModal({
             placeholderTextColor={colors.muted}
             style={[
               styles.input,
-              { color: colors.text, borderColor: colors.border, backgroundColor: colors.elevated },
+              { color: colors.text, borderColor: colors.border, backgroundColor: colors.card },
             ]}
             onSubmitEditing={() => value.trim() && onConfirm(value.trim())}
           />
           <View style={styles.actions}>
-            <Pressable style={[styles.button, { backgroundColor: colors.elevated }]} onPress={onCancel}>
-              <Text style={{ color: colors.text }}>Cancel</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                styles.ghostButton,
+                { borderColor: colors.borderStrong },
+                pressed && { backgroundColor: colors.card },
+              ]}
+              onPress={onCancel}
+            >
+              <Text style={{ color: colors.text, fontFamily: SANS.semiBold }}>Cancel</Text>
             </Pressable>
             <Pressable
               style={[styles.button, { backgroundColor: colors.accent, opacity: value.trim() ? 1 : 0.5 }]}
               disabled={!value.trim()}
               onPress={() => onConfirm(value.trim())}
             >
-              <Text style={{ color: "#fff", fontWeight: "700" }}>{confirmLabel}</Text>
+              <Text style={{ color: colors.onAccent, fontFamily: SANS.semiBold }}>{confirmLabel}</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -67,26 +76,28 @@ export default function PromptModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(10,9,8,0.62)",
     alignItems: "center",
     justifyContent: "center",
     padding: 32,
   },
   card: {
     width: "100%",
-    borderRadius: 16,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: 18,
     gap: 14,
   },
   title: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontFamily: SERIF.medium,
+    fontSize: 19,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 6,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 44,
+    fontFamily: SANS.regular,
     fontSize: 15,
   },
   actions: {
@@ -96,7 +107,12 @@ const styles = StyleSheet.create({
   },
   button: {
     paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
+    height: 40,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ghostButton: {
+    borderWidth: StyleSheet.hairlineWidth,
   },
 });

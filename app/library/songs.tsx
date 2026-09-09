@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, Text, View } from "react-native";
 import ScreenHeader from "@/components/ScreenHeader";
 import SongRow from "@/components/SongRow";
 import { useTheme } from "@/components/Theme";
+import { SERIF } from "@/lib/theme";
 import { playQueue } from "@/lib/player";
 import { Song } from "@/lib/types";
 import { useLibraryStore } from "@/store/library";
@@ -30,7 +31,7 @@ export default function SongsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Songs" subtitle={`${songs.length} songs`} />
+      <ScreenHeader title="Songs" subtitle={`${songs.length} ${songs.length === 1 ? "song" : "songs"}`} />
       {songs.length === 0 ? (
         <Empty colors={colors} text="Songs you play will appear here" icon="musical-notes-outline" />
       ) : (
@@ -61,7 +62,9 @@ function renderTrailing(liked: boolean, colors: any) {
 export function Empty({ colors, text, icon }: { colors: any; text: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.center}>
-      <Ionicons name={icon} size={36} color={colors.muted} />
+      <View style={[styles.emptyIcon, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Ionicons name={icon} size={26} color={colors.faint} />
+      </View>
       <Text style={[styles.text, { color: colors.muted }]}>{text}</Text>
     </View>
   );
@@ -72,11 +75,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 14,
     padding: 32,
   },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   text: {
-    fontSize: 14,
+    fontFamily: SERIF.italic,
+    fontSize: 15,
     textAlign: "center",
+    lineHeight: 22,
   },
 });

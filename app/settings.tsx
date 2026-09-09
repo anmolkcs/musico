@@ -4,7 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ScreenHeader from "@/components/ScreenHeader";
 import { useTheme } from "@/components/Theme";
-import { ACCENT_THEMES } from "@/lib/theme";
+import { ACCENT_THEMES, SERIF, SANS } from "@/lib/theme";
 import { useLibraryStore } from "@/store/library";
 
 const BACKEND_KEY = "musico.backend";
@@ -84,7 +84,7 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.row}>
-            <View style={[styles.icon, { backgroundColor: colors.elevated }]}>
+            <View style={[styles.icon, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.accent} />
             </View>
             <View style={styles.rowCopy}>
@@ -95,7 +95,11 @@ export default function SettingsScreen() {
             </View>
             <Pressable
               onPress={() => toggleTheme(mode)}
-              style={({ pressed }) => [styles.modeButton, { borderColor: colors.border }, pressed && { backgroundColor: colors.elevated }]}
+              style={({ pressed }) => [
+              styles.modeButton,
+              { borderColor: colors.borderStrong },
+              pressed && { backgroundColor: colors.card },
+            ]}
             >
               <Text style={[styles.modeButtonText, { color: colors.accent }]}>Switch</Text>
             </Pressable>
@@ -122,7 +126,7 @@ export default function SettingsScreen() {
                 accessibilityLabel={`${theme.label} app theme`}
               >
                 <View style={[styles.swatch, { backgroundColor: theme.color }, selected && styles.selectedSwatch]}>
-                  {selected && <Ionicons name="checkmark" size={17} color="#fff" />}
+                  {selected && <Ionicons name="checkmark" size={17} color={colors.onAccent} />}
                 </View>
                 <Text style={[styles.themeLabel, { color: colors.text }]}>{theme.label}</Text>
               </Pressable>
@@ -137,7 +141,7 @@ export default function SettingsScreen() {
             <Text style={[styles.rowSubtitle, { color: colors.muted }]}>Accent theme preview</Text>
           </View>
           <View style={[styles.previewPlay, { backgroundColor: colors.accent }]}>
-            <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
+            <Ionicons name="play" size={18} color={colors.onAccent} style={{ marginLeft: 2 }} />
           </View>
         </View>
 
@@ -149,22 +153,24 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
+    fontFamily: SERIF.medium,
     fontSize: 20,
-    fontWeight: "800",
-    marginTop: 12,
+    lineHeight: 26,
+    marginTop: 14,
     marginBottom: 10,
   },
   sectionDescription: {
+    fontFamily: SANS.regular,
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 10,
   },
   card: {
-    borderWidth: 1,
-    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
     padding: 12,
   },
   row: {
@@ -175,7 +181,9 @@ const styles = StyleSheet.create({
   icon: {
     width: 42,
     height: 42,
-    borderRadius: 12,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(247,244,238,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -184,25 +192,30 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   rowTitle: {
+    fontFamily: SANS.semiBold,
     fontSize: 15,
-    fontWeight: "700",
   },
   rowSubtitle: {
+    fontFamily: SANS.regular,
     fontSize: 12,
   },
   modeButton: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+    paddingHorizontal: 14,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modeButtonText: {
+    fontFamily: SANS.semiBold,
     fontSize: 12,
-    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   themeCard: {
-    borderWidth: 1,
-    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
     padding: 8,
     flexDirection: "row",
     flexWrap: "wrap",
@@ -212,7 +225,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 8,
   },
   swatch: {
     width: 34,
@@ -223,34 +236,35 @@ const styles = StyleSheet.create({
   },
   selectedSwatch: {
     borderWidth: 3,
-    borderColor: "#fff",
+    borderColor: "#F7F4EE",
   },
   themeLabel: {
+    fontFamily: SANS.regular,
     fontSize: 11,
-    fontWeight: "600",
   },
   preview: {
-    borderWidth: 1,
-    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
     padding: 16,
     marginTop: 18,
     flexDirection: "row",
     alignItems: "center",
   },
   previewEyebrow: {
-    fontSize: 10,
-    fontWeight: "800",
+    fontFamily: SANS.semiBold,
+    fontSize: 9,
     letterSpacing: 1.3,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   previewTitle: {
-    fontSize: 17,
-    fontWeight: "800",
+    fontFamily: SERIF.medium,
+    fontSize: 18,
+    lineHeight: 23,
   },
   previewPlay: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
