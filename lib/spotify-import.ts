@@ -15,6 +15,8 @@
  * - Big playlists still match one-by-one on YouTube (see import screen).
  */
 
+import { guardedFetch } from "./fetch-guard";
+
 export type SpotifyKind = "playlist" | "album" | "track";
 
 export type SpotifyTrack = {
@@ -65,28 +67,19 @@ export function parseSpotifyInput(input: string): { kind: SpotifyKind; id: strin
 
 const FETCH_TIMEOUT_MS = 15_000;
 
-/** fetch() with a timeout that also respects an outer abort signal. */
+/**
+ * Spotify fetch through the shared guardrails (concurrency cap, timeout,
+ * GET dedup). Timeout surfaces as AbortError from the guard, so a non-abort
+ * outer signal means Spotify was slow — mapped to a friendly message here.
+ */
 async function fetchWithTimeout(url: string, init: RequestInit, outerSignal?: AbortSignal): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error("Spotify took too long to respond.")), FETCH_TIMEOUT_MS);
-  const onOuterAbort = () => controller.abort(outerSignal?.reason);
-  if (outerSignal) {
-    if (outerSignal.aborted) {
-      clearTimeout(timer);
-      throw outerSignal.reason instanceof Error ? outerSignal.reason : new Error("Cancelled");
-    }
-    outerSignal.addEventListener("abort", onOuterAbort, { once: true });
-  }
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await guardedFetch(url, init, { timeoutMs: FETCH_TIMEOUT_MS, signal: outerSignal });
   } catch (e: any) {
     if (e?.name === "AbortError" && !outerSignal?.aborted) {
       throw new Error("Spotify took too long to respond. Check your connection and try again.");
     }
     throw e;
-  } finally {
-    clearTimeout(timer);
-    outerSignal?.removeEventListener("abort", onOuterAbort);
   }
 }
 

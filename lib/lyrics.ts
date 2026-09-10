@@ -1,4 +1,5 @@
 import { openDb, getCachedLyrics, saveLyrics, getLyricsCacheAge } from "./db";
+import { guardedFetch } from "./fetch-guard";
 import { Song } from "./types";
 import { parseLrc, serializeLrc } from "./lrc";
 import type { LyricLine } from "./lrc";
@@ -13,12 +14,6 @@ export type LyricsResult = {
 
 const FETCH_TIMEOUT_MS = 10_000;
 
-function timeoutSignal(): { signal: AbortSignal; done: () => void } {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  return { signal: controller.signal, done: () => clearTimeout(timer) };
-}
-
 function headers(): HeadersInit {
   return {
     "User-Agent": "Musico/1.0 (personal project)",
@@ -32,29 +27,26 @@ async function lrclibGet(song: Song): Promise<any | null> {
   });
   if (song.duration > 0) params.set("duration", String(Math.round(song.duration)));
   {
-    const { signal, done } = timeoutSignal();
     try {
-      const res = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
+      // Shared guardrails: timeout + concurrency cap + GET dedup, so the
+      // preview card and the full lyrics view mounting together share one
+      // network call instead of firing two.
+      const res = await guardedFetch(`https://lrclib.net/api/get?${params.toString()}`, {
         headers: headers(),
-        signal,
-      });
+      }, { timeoutMs: FETCH_TIMEOUT_MS });
       if (res.ok) {
         const data = await res.json();
         if (data && (data.syncedLyrics || data.plainLyrics)) return data;
       }
     } catch {
-    } finally {
-      done();
     }
   }
   // Fuzzy fallback: search endpoint
-  const { signal, done } = timeoutSignal();
   try {
     const q = new URLSearchParams({ q: `${song.title} ${song.artist}`.trim() });
-    const res = await fetch(`https://lrclib.net/api/search?${q.toString()}`, {
+    const res = await guardedFetch(`https://lrclib.net/api/search?${q.toString()}`, {
       headers: headers(),
-      signal,
-    });
+    }, { timeoutMs: FETCH_TIMEOUT_MS });
     if (res.ok) {
       const list = (await res.json()) as any[];
       if (Array.isArray(list) && list.length > 0) {
@@ -74,8 +66,6 @@ async function lrclibGet(song: Song): Promise<any | null> {
       }
     }
   } catch {
-  } finally {
-    done();
   }
   return null;
 }

@@ -1,4 +1,5 @@
 import { getCachedArtistDetails, openDb, saveArtistDetails } from "./db";
+import { guardedFetch } from "./fetch-guard";
 
 export type ArtistDetails = {
   name: string;
@@ -31,17 +32,16 @@ function emptyDetails(name: string): ArtistDetails {
 }
 
 async function fetchJson<T>(url: string): Promise<T | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": "Musico/1.0 (personal project)" },
-    });
+    const response = await guardedFetch(
+      url,
+      { headers: { "User-Agent": "Musico/1.0 (personal project)" } },
+      { timeoutMs: REQUEST_TIMEOUT }
+    );
     if (!response.ok) return null;
     return (await response.json()) as T;
-  } finally {
-    clearTimeout(timeout);
+  } catch {
+    return null;
   }
 }
 

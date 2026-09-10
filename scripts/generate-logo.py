@@ -5,12 +5,15 @@ The mark is "the musico record" — a terracotta vinyl disc with groove rings
 and an ivory label carrying an italic serif "m", matching the app's
 Warm Editorial Minimalism x Tactile Analog design system (lib/theme.ts).
 
-Requires Pillow. Run from the repo root: python3 scripts/generate-logo.py
+Requires Pillow + numpy. Run from the repo root: python3 scripts/generate-logo.py
 """
 
+import math
 import os
+import sys
 
-from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "images")
@@ -24,10 +27,12 @@ EMBER = (194, 99, 43)  # copper
 TERRACOTTA_LIT = (224, 138, 70)  # warm highlight
 IVORY = (247, 244, 238)  # text
 CHARCOAL = (20, 19, 18)  # background
+GLOW = (35, 29, 23)  # warm lift behind the disc on charcoal
 INK = (32, 28, 24)  # light-mode text
 GROOVE = (70, 30, 8)  # groove shadow on the disc
 
 SS = 4  # supersampling factor for anti-aliased output
+GRAD_CAP = 1024  # gradients render smooth well below this; upscaled after
 
 
 def mix(a, b, t):
@@ -35,16 +40,37 @@ def mix(a, b, t):
 
 
 def radial_gradient(size, inner, outer, inner_radius=0.0):
-    """Square RGBA image with a radial gradient clipped to the outer circle."""
-    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    cx = size / 2
-    steps = max(2, int(size * 0.75))
-    for i in range(steps, 0, -1):
-        t = i / steps
-        r = int(round(cx * (inner_radius + t * (1.0 - inner_radius))))
-        color = mix(inner, outer, t)
-        ImageDraw.Draw(im).ellipse([cx - r, cx - r, cx + r, cx + r], fill=color + (255,))
-    return im
+    """Smooth radial gradient clipped to the outer circle (numpy, fast).
+
+    Rendered at a capped working resolution — perfectly smooth once the
+    supersampled composition is downscaled.
+    """
+    w = min(size, GRAD_CAP)
+    r = w / 2
+    yy, xx = np.mgrid[0:w, 0:w].astype(np.float64)
+    dist = np.sqrt((xx - r + 0.5) ** 2 + (yy - r + 0.5) ** 2) / r
+    t = np.clip((dist - inner_radius) / max(1e-6, 1.0 - inner_radius), 0, 1)
+    inner_a = np.array(inner, dtype=np.float64)
+    outer_a = np.array(outer, dtype=np.float64)
+    rgb = (inner_a[None, None, :] * (1 - t[..., None]) + outer_a[None, None, :] * t[..., None])
+    alpha = np.where(dist <= 1.0, 255, 0).astype(np.uint8)
+    im = Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8))
+    return im if w == size else im.resize((size, size), Image.BICUBIC)
+
+
+def square_glow(size, inner, outer):
+    """Full-square radial glow (unclipped) for charcoal backgrounds."""
+    w = min(size, GRAD_CAP)
+    r = w / 2
+    yy, xx = np.mgrid[0:w, 0:w].astype(np.float64)
+    dist = np.sqrt((xx - r + 0.5) ** 2 + (yy - r + 0.5) ** 2) / r
+    t = np.clip(dist, 0, 1) ** 1.4
+    inner_a = np.array(inner, dtype=np.float64)
+    outer_a = np.array(outer, dtype=np.float64)
+    rgb = (inner_a[None, None, :] * (1 - t[..., None]) + outer_a[None, None, :] * t[..., None])
+    alpha = np.full((w, w, 1), 255, dtype=np.uint8)
+    im = Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8))
+    return im if w == size else im.resize((size, size), Image.BICUBIC)
 
 
 def solid(size, color):
@@ -55,8 +81,55 @@ def ring(draw, cx, cy, radius, width, fill):
     draw.ellipse(
         [cx - radius, cy - radius, cx + radius, cy + radius],
         outline=fill,
-        width=int(width),
+        width=max(1, int(width)),
     )
+
+
+def soft_band(draw, cx, cy, disc_r, r_frac, w_frac, peak, center, span, rgb):
+    """One soft light/shade band: stacked arcs feathered both radially
+    (gaussian across the band) and angularly (sine at the ends), so the
+    sweep melts into the grooves with no visible seams.
+
+    Translucent strokes are painted onto the transparent overlay with plain
+    Draw (which stamps ink RGB + ink alpha), and layer.alpha_composite does
+    the real blending. Layers paint extremes-first so overlapping strokes
+    keep the peak alpha at the band center instead of a faint outer ring."""
+    # Extremes first, peak (k=0) last — later strokes overwrite overlaps.
+    for k in sorted(range(-3, 4), key=lambda k: -abs(k)):
+        fall_r = math.exp(-((k / 1.8) ** 2))
+        if fall_r < 0.06:
+            continue
+        rr = disc_r * (r_frac + k * w_frac * 0.45)
+        width = max(2, int(disc_r * w_frac * 0.55))
+        segs = 26
+        for j in range(segs):
+            tm = (j + 0.5) / segs
+            fall_a = math.sin(math.pi * tm) ** 0.8
+            alpha = int(round(peak * fall_r * fall_a))
+            if alpha <= 0:
+                continue
+            a0 = center - span / 2 + span * j / segs
+            a1 = center - span / 2 + span * (j + 1) / segs + 0.5
+            draw.arc(
+                [cx - rr, cy - rr, cx + rr, cy + rr],
+                start=a0,
+                end=a1,
+                fill=rgb + (alpha,),
+                width=width,
+            )
+
+
+
+def groove_fracs():
+    """Pressed-vinyl grooves: even spacing with a wider breather every fourth
+    ring (track banding), running rim -> dead wax before the label."""
+    fracs = []
+    r, i = 0.905, 0
+    while r >= 0.585:
+        fracs.append((r, i))
+        r -= 0.030 if (i % 4 != 3) else 0.047
+        i += 1
+    return fracs
 
 
 def draw_record(cx, cy, disc_r, label_letter=True):
@@ -73,24 +146,25 @@ def draw_record(cx, cy, disc_r, label_letter=True):
     ov = Image.new("RGBA", layer.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
 
-    # Rim — slightly darker edge to seat the disc
+    # Rim — slightly darker edge to seat the disc, plus a light catch on the
+    # upper-left so the edge reads at small sizes.
     ring(d, cx, cy, disc_r * 0.965, disc_r * 0.028, GROOVE + (110,))
+    soft_band(d, cx, cy, disc_r, 0.962, 0.016, 56, center=218, span=72, rgb=IVORY)
 
-    # Grooves — fine alternating lines, tighter toward the label (pressed vinyl)
-    for i, frac in enumerate((0.895, 0.855, 0.813, 0.769, 0.723, 0.675, 0.625, 0.572, 0.545)):
-        alpha = 62 if i % 2 == 0 else 34
-        ring(d, cx, cy, disc_r * frac, disc_r * 0.011, GROOVE + (alpha,))
+    # Grooves — alternating strong/faint lines with track banding.
+    for frac, i in groove_fracs():
+        alpha = 64 if i % 2 == 0 else 34
+        ring(d, cx, cy, disc_r * frac, disc_r * 0.010, GROOVE + (alpha,))
 
-    # Sheen — two soft light bands sweeping the upper-left, like lamplight
-    # on a spinning record. Drawn after grooves so it sits on top of them.
-    for r_frac, w_frac, alpha in ((0.88, 0.055, 26), (0.72, 0.035, 18)):
-        d.arc(
-            [cx - disc_r * r_frac, cy - disc_r * r_frac, cx + disc_r * r_frac, cy + disc_r * r_frac],
-            start=192,
-            end=244,
-            fill=IVORY + (alpha,),
-            width=int(disc_r * w_frac),
-        )
+    # Dead-wax wash — a smooth darker breath between last groove and label.
+    ring(d, cx, cy, disc_r * 0.560, disc_r * 0.034, GROOVE + (24,))
+
+    # Lamplight sweep upper-left, melted into the grooves; faint counter-
+    # shade lower-right for roundness.
+    for r_frac, w_frac, peak in ((0.86, 0.050, 34), (0.70, 0.034, 22)):
+        soft_band(d, cx, cy, disc_r, r_frac, w_frac, peak, center=218, span=54, rgb=IVORY)
+    for r_frac, w_frac, peak in ((0.84, 0.060, 28), (0.68, 0.040, 18)):
+        soft_band(d, cx, cy, disc_r, r_frac, w_frac, peak, center=38, span=56, rgb=GROOVE)
 
     if label_letter:
         label_r = disc_r * 0.352
@@ -115,7 +189,7 @@ def downsave(img, name, size=None):
     print(f"{name:38s} {img.size[0]}x{img.size[1]}  {os.path.getsize(path):>7,d} B")
 
 
-def wordmark_layer(width, font_px, color, with_vinyl_o=True):
+def wordmark_layer(font_px, color, with_vinyl_o=True):
     """Render 'musico' (final o as a vinyl ring) on a tight transparent canvas.
 
     Returns (image, baseline_y) at supersampled resolution.
@@ -168,18 +242,50 @@ def make_splash(dark=True):
     record = draw_record(disc_r, disc_r, disc_r)
     im.alpha_composite(record, (W // 2 - disc_r, int(540 * SS) - disc_r))
 
-    wm, _ = wordmark_layer(W, int(172 * SS), IVORY if dark else INK)
+    wm, _ = wordmark_layer(int(172 * SS), IVORY if dark else INK)
     im.alpha_composite(wm, (W // 2 - wm.width // 2, int(1020 * SS)))
 
     return im.resize((1200, 1536), Image.LANCZOS)
 
 
+def make_monochrome(S):
+    """Material You silhouette: white disc with real groove/label cutouts so
+    the themed background shows through as texture."""
+    mono = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(mono)
+    cx = cy = S // 2
+    R = int(340 * SS)
+    d.ellipse([cx - R, cy - R, cx + R, cy + R], fill=(255, 255, 255, 255))
+
+    mask = Image.new("L", (S, S), 0)
+    md = ImageDraw.Draw(mask)
+    for frac in (0.875, 0.79, 0.705, 0.62, 0.55):
+        ring(md, cx, cy, R * frac, R * 0.024, 255)
+    md.ellipse(
+        [cx - R * 0.34, cy - R * 0.34, cx + R * 0.34, cy + R * 0.34],
+        fill=255,
+    )
+    alpha = ImageChops.subtract(mono.split()[3], mask)
+    mono.putalpha(alpha)
+
+    # Spindle dot stays solid white at the center.
+    d = ImageDraw.Draw(mono)
+    d.ellipse(
+        [cx - R * 0.185, cy - R * 0.185, cx + R * 0.185, cy + R * 0.185],
+        fill=(255, 255, 255, 255),
+    )
+    return mono
+
+
 def main():
+    for path in (FONT_SEMIBOLD_ITALIC, FONT_MEDIUM_ITALIC):
+        if not os.path.exists(path):
+            sys.exit(f"missing font: {path}\nrun `npx expo install` / `npm install` first.")
     os.makedirs(OUT, exist_ok=True)
 
-    # ---- App icon (iOS / universal): charcoal square + record ----
+    # ---- App icon (iOS / universal): warm glow + record ----
     S = 1024 * SS
-    icon = solid(S, CHARCOAL)
+    icon = square_glow(S, GLOW, CHARCOAL)
     record = draw_record(S // 2, S // 2, int(340 * SS))
     icon.alpha_composite(record)
     downsave(icon.convert("RGB"), "icon.png", 1024)
@@ -193,29 +299,21 @@ def main():
     fg.alpha_composite(draw_record(S // 2, S // 2, int(312 * SS)))
     downsave(fg, "android-icon-foreground.png", 1024)
 
-    bg = solid(S, CHARCOAL)
+    bg = square_glow(S, GLOW, CHARCOAL)
     downsave(bg, "android-icon-background.png", 1024)
 
     # Monochrome (Material You themed icons): white record silhouette
-    mono = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(mono)
-    cx = cy = S // 2
-    R = int(340 * SS)
-    d.ellipse([cx - R, cy - R, cx + R, cy + R], fill=(255, 255, 255, 255))
-    for frac in (0.875, 0.79, 0.705, 0.62):
-        ring(d, cx, cy, R * frac, R * 0.020, (255, 255, 255, 0))
-    d.ellipse([cx - R * 0.34, cy - R * 0.34, cx + R * 0.34, cy + R * 0.34], fill=(255, 255, 255, 0))
-    d.ellipse([cx - R * 0.185, cy - R * 0.185, cx + R * 0.185, cy + R * 0.185], fill=(255, 255, 255, 255))
-    downsave(mono, "android-icon-monochrome.png", 1024)
+    downsave(make_monochrome(S), "android-icon-monochrome.png", 1024)
 
-    # ---- Favicon: simplified mini record ----
+    # ---- Favicon: simplified mini record, bolder for 48px ----
     fav = solid(192 * SS, CHARCOAL)
     d = ImageDraw.Draw(fav)
     cx = cy = 96 * SS
     R = 118 * SS
     d.ellipse([cx - R, cy - R, cx + R, cy + R], fill=TERRACOTTA + (255,))
-    ring(d, cx, cy, R * 0.70, R * 0.075, GROOVE + (80,))
-    d.ellipse([cx - R * 0.37, cy - R * 0.37, cx + R * 0.37, cy + R * 0.37], fill=IVORY + (255,))
+    ring(d, cx, cy, R * 0.93, R * 0.05, GROOVE + (90,))
+    ring(d, cx, cy, R * 0.70, R * 0.095, GROOVE + (85,))
+    d.ellipse([cx - R * 0.40, cy - R * 0.40, cx + R * 0.40, cy + R * 0.40], fill=IVORY + (255,))
     downsave(fav, "favicon.png", 48)
 
     # ---- Standalone mark on transparent (in-app / docs use) ----

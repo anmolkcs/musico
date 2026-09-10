@@ -1,4 +1,5 @@
 import type { SearchResult, SearchResultItem, StreamResult } from "./types";
+import { guardedFetch } from "../../lib/fetch-guard";
 
 export type { SearchResult, SearchResultItem, StreamResult };
 
@@ -79,15 +80,11 @@ function ordered(
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal, headers: { Accept: "application/json", ...init?.headers } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return (await res.json()) as T;
-  } finally {
-    clearTimeout(timer);
-  }
+  // Shared guardrails (concurrency cap, timeout, GET dedup) on top of the
+  // per-instance failure penalties below.
+  const res = await guardedFetch(url, { ...init, headers: { Accept: "application/json", ...init?.headers } }, { timeoutMs });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as T;
 }
 
 function cleanArtist(name: string | null | undefined): string {

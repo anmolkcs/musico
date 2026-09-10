@@ -18,11 +18,6 @@ type Props = {
   showArtist?: boolean;
   trailing?: React.ReactNode;
   dense?: boolean;
-  /**
-   * Resolve a high-res Saavn cover for songs. Set false for video search
-   * results (and artist/album rows) so their YouTube thumbnails stay.
-   */
-  enhanceArtwork?: boolean;
 };
 
 export default function SongRow({
@@ -35,7 +30,6 @@ export default function SongRow({
   showArtist = true,
   trailing,
   dense = false,
-  enhanceArtwork = true,
 }: Props) {
   const { colors } = useTheme();
   const openMenu = useTrackMenu((s) => s.open);
@@ -67,14 +61,7 @@ export default function SongRow({
       accessibilityRole="button"
       accessibilityLabel={`${song.title}${song.artist ? ` by ${song.artist}` : ""}`}
     >
-      <Artwork
-        song={song}
-        size={size}
-        radius={4}
-        // Belt and braces with the caller's enhanceArtwork: only song-type
-        // rows may upgrade (library records carry no type and count as songs).
-        enhance={enhanceArtwork && (song.type === undefined || song.type === "song")}
-      />
+      <Artwork song={song} size={size} radius={4} />
       <View style={styles.meta}>
         <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
           {song.title}
