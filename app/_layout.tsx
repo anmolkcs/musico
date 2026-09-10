@@ -124,6 +124,7 @@ export default function RootLayout() {
                 name="player"
                 options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
               />
+              <Stack.Screen name="queue" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
               <Stack.Screen name="downloads" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
             </Stack>
             <TrackMenu />

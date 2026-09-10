@@ -81,6 +81,17 @@ def draw_record(cx, cy, disc_r, label_letter=True):
         alpha = 62 if i % 2 == 0 else 34
         ring(d, cx, cy, disc_r * frac, disc_r * 0.011, GROOVE + (alpha,))
 
+    # Sheen — two soft light bands sweeping the upper-left, like lamplight
+    # on a spinning record. Drawn after grooves so it sits on top of them.
+    for r_frac, w_frac, alpha in ((0.88, 0.055, 26), (0.72, 0.035, 18)):
+        d.arc(
+            [cx - disc_r * r_frac, cy - disc_r * r_frac, cx + disc_r * r_frac, cy + disc_r * r_frac],
+            start=192,
+            end=244,
+            fill=IVORY + (alpha,),
+            width=int(disc_r * w_frac),
+        )
+
     if label_letter:
         label_r = disc_r * 0.352
         d.ellipse([cx - label_r, cy - label_r, cx + label_r, cy + label_r], fill=IVORY + (255,))
@@ -115,10 +126,13 @@ def wordmark_layer(width, font_px, color, with_vinyl_o=True):
     probe = Image.new("RGBA", (8, 8))
     pd = ImageDraw.Draw(probe)
     text_w = int(pd.textlength("music", font=font))
+    # Italic glyphs overshoot their advance width on the right; add slack so
+    # the drawn "o" never collides with the "c".
+    overshoot = int(font_px * 0.10)
     if with_vinyl_o:
         o_d = int(font_px * 0.545)  # outer diameter of the drawn o
-        o_stroke = max(int(font_px * 0.155), SS * 2)
-        total = text_w + o_d
+        o_stroke = max(int(font_px * 0.105), SS * 2)  # thin ring, reads as vinyl
+        total = text_w + overshoot + o_d
     else:
         total = int(pd.textlength("musico", font=font))
 
@@ -130,12 +144,18 @@ def wordmark_layer(width, font_px, color, with_vinyl_o=True):
     if with_vinyl_o:
         # Center the ring on the x-height middle; round glyphs overshoot the
         # baseline slightly, so the center sits a touch below baseline-middle.
-        ox = text_w + o_d / 2 - font_px * 0.026
+        ox = text_w + overshoot + o_d / 2
         oy = ascent - o_d / 2 + font_px * 0.012
         d.ellipse(
             [ox - o_d / 2, oy - o_d / 2, ox + o_d / 2, oy + o_d / 2],
             outline=color + (255,),
             width=o_stroke,
+        )
+        # Spindle dot — makes the ring read as a record, not a plain "o".
+        dot_r = font_px * 0.045
+        d.ellipse(
+            [ox - dot_r, oy - dot_r, ox + dot_r, oy + dot_r],
+            fill=color + (255,),
         )
     return im, ascent
 
@@ -144,12 +164,12 @@ def make_splash(dark=True):
     W, H = 1200 * SS, 1536 * SS
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
-    disc_r = 350 * SS
+    disc_r = 330 * SS
     record = draw_record(disc_r, disc_r, disc_r)
-    im.alpha_composite(record, (W // 2 - disc_r, int(560 * SS) - disc_r))
+    im.alpha_composite(record, (W // 2 - disc_r, int(540 * SS) - disc_r))
 
-    wm, _ = wordmark_layer(W, int(196 * SS), IVORY if dark else INK)
-    im.alpha_composite(wm, (W // 2 - wm.width // 2, int(1046 * SS)))
+    wm, _ = wordmark_layer(W, int(172 * SS), IVORY if dark else INK)
+    im.alpha_composite(wm, (W // 2 - wm.width // 2, int(1020 * SS)))
 
     return im.resize((1200, 1536), Image.LANCZOS)
 

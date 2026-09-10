@@ -93,14 +93,13 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.greeting, { color: colors.accent }]}>LISTENING ROOM</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-              <LogoMark size={26} />
-              <Text style={[styles.brand, { color: colors.text }]}>Musico</Text>
+            <View>
+              <Text style={[styles.greeting, { color: colors.accent }]}>LISTENING ROOM</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                <LogoMark size={26} />
+                <Text style={[styles.brand, { color: colors.text }]}>Musico</Text>
+              </View>
             </View>
-            <Text style={[styles.homeLabel, { color: colors.muted }]}>HOME</Text>
-          </View>
           <Pressable
             onPress={() => router.push("/search")}
             style={({ pressed }) => [styles.themeBtn, { borderColor: colors.border }, pressed && { backgroundColor: colors.card }]}
@@ -302,7 +301,6 @@ const styles = StyleSheet.create({
     lineHeight: 29,
     letterSpacing: -0.5,
   },
-  homeLabel: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.2 },
   greeting: {
     fontFamily: SANS.semiBold,
     fontSize: 10,

@@ -242,6 +242,7 @@ export default function PlayerScreen() {
 
 function UpNextCard() {
   const { colors } = useTheme();
+  const router = useRouter();
   const { songs, index } = useQueueStore();
   const next = songs[index + 1] ?? null;
   const remaining = Math.max(0, songs.length - index - 1);
@@ -265,9 +266,9 @@ function UpNextCard() {
   return (
     <Pressable
       style={[styles.destinationCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth }]}
-      onPress={() => playNext(false)}
+      onPress={() => router.push("/queue")}
       accessibilityRole="button"
-      accessibilityLabel={`Play next: ${next.title}`}
+      accessibilityLabel="Open queue"
     >
       <View style={[styles.destinationIcon, { backgroundColor: colors.elevated }]}>
         <Ionicons name="list-outline" size={22} color={colors.accent} />
@@ -280,7 +281,15 @@ function UpNextCard() {
           {next.title} — {next.artist || "Unknown artist"}
         </Text>
       </View>
-      <Ionicons name="play-forward" size={20} color={colors.muted} />
+      <Pressable
+        hitSlop={10}
+        onPress={() => playNext(false)}
+        style={({ pressed }) => [styles.upNextPlay, pressed && { opacity: 0.6 }]}
+        accessibilityRole="button"
+        accessibilityLabel={`Play next: ${next.title}`}
+      >
+        <Ionicons name="play-forward" size={20} color={colors.muted} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -578,6 +587,12 @@ skipControl: {
   },
   destinationIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   destinationCopy: { flex: 1, gap: 4 },
+  upNextPlay: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cardEyebrow: {
     fontFamily: SANS.semiBold,
     fontSize: 11,

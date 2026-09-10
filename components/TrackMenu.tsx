@@ -6,7 +6,7 @@ import { SERIF, SANS } from "../lib/theme";
 import { useTheme } from "./Theme";
 import { useTrackMenu } from "../store/menu";
 import { useLibraryStore } from "../store/library";
-import { useQueueStore } from "../store/queue";
+import { enqueueLast, enqueueNext } from "../lib/player";
 import { useDownloadsStore } from "../lib/downloads";
 import { addTrackToPlaylist, openDb, upsertTrack } from "../lib/db";
 
@@ -62,7 +62,15 @@ export default function TrackMenu() {
       icon: "play-forward-outline",
       label: "Play next",
       onPress: () => {
-        useQueueStore.getState().insertNext(song);
+        enqueueNext(song).catch(() => {});
+        close();
+      },
+    });
+    options.push({
+      icon: "list-outline",
+      label: "Add to queue",
+      onPress: () => {
+        enqueueLast(song).catch(() => {});
         close();
       },
     });
