@@ -3,12 +3,13 @@ import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
   Event,
+  RepeatMode as NativeRepeatMode,
   State,
 } from "react-native-track-player";
 import YtCore from "../modules/yt-core";
 import { artworkFor, Song } from "./types";
 import { recordPlay, openDb } from "./db";
-import { currentSong, useQueueStore } from "../store/queue";
+import { currentSong, hydrateQueueStore, RepeatMode, useQueueStore } from "../store/queue";
 import { useLibraryStore } from "../store/library";
 import { nextIndex, prevIndex } from "./queue-logic";
 import { getLocalPlayableUrl } from "./local-media";
@@ -16,6 +17,17 @@ import type { StreamResult } from "../modules/yt-core";
 
 let playerReady = false;
 let playbackServiceRegistered = false;
+let queueSyncSeq = 0;
+
+async function applyRepeatMode(repeat: RepeatMode) {
+  const nativeMode =
+    repeat === "track"
+      ? NativeRepeatMode.Track
+      : repeat === "queue"
+        ? NativeRepeatMode.Queue
+        : NativeRepeatMode.Off;
+  await TrackPlayer.setRepeatMode(nativeMode);
+}
 
 export async function setupPlayer(): Promise<boolean> {
   if (playerReady) return false;
@@ -42,6 +54,15 @@ export async function setupPlayer(): Promise<boolean> {
     compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext, Capability.SkipToPrevious],
     progressUpdateEventInterval: 2,
   });
+
+  await hydrateQueueStore().catch(() => {});
+  const { songs, index, repeat } = useQueueStore.getState();
+  await applyRepeatMode(repeat).catch(() => {});
+  const nativeQueue = await TrackPlayer.getQueue().catch(() => []);
+  if (songs.length > 0 && nativeQueue.length === 0) {
+    await syncNativeQueueFromStore(index, { autoPlay: false }).catch(() => {});
+  }
+
   playerReady = true;
   return true;
 }
@@ -66,7 +87,6 @@ function cacheGet(videoId: string): StreamResult | null {
 
 function cachePut(videoId: string, result: StreamResult) {
   if (streamCache.size >= STREAM_CACHE_MAX) {
-    // evict the oldest entry
     const oldest = [...streamCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
     if (oldest) streamCache.delete(oldest[0]);
   }
@@ -94,10 +114,10 @@ export async function resolveStream(videoId: string, { force = false } = {}): Pr
   return p;
 }
 
-async function getPlayableUrl(song: Song): Promise<{ url: string; format: string }> {
+async function getPlayableUrl(song: Song, { forceStream = false } = {}): Promise<{ url: string; format: string }> {
   const local = await getLocalPlayableUrl(song.id);
   if (local) return { url: local, format: "local" };
-  const stream = await resolveStream(song.id);
+  const stream = await resolveStream(song.id, { force: forceStream });
   if (!stream.streamUrl) throw new Error("No playable audio stream for this track");
   return { url: stream.streamUrl, format: stream.format };
 }
@@ -120,50 +140,109 @@ function trackObject(song: Song, url: string, duration: number) {
   };
 }
 
-let loadSeq = 0;
-// One-shot retry bookkeeping for playback errors, keyed by video id
-const errorRetried = new Set<string>();
+function shuffledUpcomingIndices(length: number, current: number) {
+  const indices = Array.from({ length }, (_, i) => i).filter((i) => i !== current);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices;
+}
 
-export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}) {
-  const { autoPlay = true } = opts;
-  const { songs } = useQueueStore.getState();
-  const song = songs[index];
-  if (!song) {
+async function resolveTrack(song: Song, opts: { forceStream?: boolean } = {}) {
+  const { url, format } = await getPlayableUrl(song, opts);
+  let duration = song.duration;
+  if (format !== "local" && duration <= 0) {
+    try {
+      const meta = await resolveStream(song.id);
+      duration = meta.duration;
+    } catch {}
+  }
+  return trackObject(song, url, duration);
+}
+
+async function syncNativeQueueFromStore(startIndex: number, opts: { autoPlay?: boolean; forceCurrent?: boolean } = {}) {
+  const { autoPlay = true, forceCurrent = false } = opts;
+  const { songs, shuffle } = useQueueStore.getState();
+  if (!songs[startIndex]) {
     useQueueStore.getState().setLoading(false);
     return;
   }
-  const seq = ++loadSeq;
-  useQueueStore.getState().setIndex(index);
+  const seq = ++queueSyncSeq;
   useQueueStore.getState().setLoading(true);
+
   try {
-    const { url, format } = await getPlayableUrl(song);
-    if (seq !== loadSeq) return; // superseded by a newer request
-    let duration = song.duration;
-    if (format !== "local" && duration <= 0) {
-      try {
-        const meta = await resolveStream(song.id);
-        duration = meta.duration;
-      } catch {}
-    }
+    const current = songs[startIndex];
+    const currentTrack = await resolveTrack(current, { forceStream: forceCurrent });
+    if (seq !== queueSyncSeq) return;
+
+    const upcomingIndices = shuffle
+      ? shuffledUpcomingIndices(songs.length, startIndex)
+      : Array.from({ length: songs.length - startIndex - 1 }, (_, i) => startIndex + i + 1);
+
+    const upcomingTracks = (
+      await Promise.all(
+        upcomingIndices.map(async (idx) => {
+          try {
+            const track = await resolveTrack(songs[idx]);
+            return { idx, track };
+          } catch {
+            return null;
+          }
+        })
+      )
+    ).filter((entry): entry is { idx: number; track: ReturnType<typeof trackObject> } => entry != null);
+
+    if (seq !== queueSyncSeq) return;
+
     await TrackPlayer.reset();
-    if (seq !== loadSeq) return;
-    await TrackPlayer.add([trackObject(song, url, duration)]);
+    if (seq !== queueSyncSeq) return;
+    await TrackPlayer.add([currentTrack, ...upcomingTracks.map((t) => t.track)]);
+    useQueueStore.getState().setIndex(startIndex);
     if (autoPlay) await TrackPlayer.play();
-    // a fresh load of this track can count as a play again once confirmed
-    recordedTrackIds.delete(song.id);
-  } catch (e) {
-    if (seq !== loadSeq) return;
-    console.warn("loadIndex failed", song.id, e);
-    throw e;
+    recordedTrackIds.delete(current.id);
   } finally {
-    if (seq === loadSeq) useQueueStore.getState().setLoading(false);
+    if (seq === queueSyncSeq) useQueueStore.getState().setLoading(false);
   }
+}
+
+async function refreshUpcomingQueue(activeStoreIndex: number) {
+  const { songs, shuffle } = useQueueStore.getState();
+  if (!songs[activeStoreIndex]) return;
+
+  const upcomingIndices = shuffle
+    ? shuffledUpcomingIndices(songs.length, activeStoreIndex)
+    : Array.from({ length: songs.length - activeStoreIndex - 1 }, (_, i) => activeStoreIndex + i + 1);
+
+  await TrackPlayer.removeUpcomingTracks();
+  if (upcomingIndices.length === 0) return;
+
+  const upcomingTracks = (
+    await Promise.all(
+      upcomingIndices.map(async (idx) => {
+        try {
+          const track = await resolveTrack(songs[idx]);
+          return track;
+        } catch {
+          return null;
+        }
+      })
+    )
+  ).filter((track): track is ReturnType<typeof trackObject> => track != null);
+
+  if (upcomingTracks.length > 0) {
+    await TrackPlayer.add(upcomingTracks);
+  }
+}
+
+export async function loadIndex(index: number, opts: { autoPlay?: boolean } = {}) {
+  await syncNativeQueueFromStore(index, opts);
 }
 
 export async function playQueue(songs: Song[], startIndex: number, sourceName: string) {
   useQueueStore.getState().setQueue(songs, startIndex, sourceName);
   errorRetried.clear();
-  await loadIndex(startIndex);
+  await syncNativeQueueFromStore(startIndex, { autoPlay: true });
 }
 
 export async function playSingle(song: Song, sourceName = "song") {
@@ -177,19 +256,8 @@ export async function playNext(auto = false) {
     return;
   }
   try {
-    await loadIndex(idx);
+    await jumpTo(idx);
   } catch {
-    // Skip past broken tracks, bounded so we don't spin through the whole queue
-    let attempts = 0;
-    while (attempts < 5) {
-      const cur = nextIndex(queueInput(), true);
-      if (cur < 0) break;
-      try {
-        await loadIndex(cur);
-        return;
-      } catch {}
-      attempts++;
-    }
     await TrackPlayer.pause();
   }
 }
@@ -203,26 +271,27 @@ export async function playPrevious() {
   const idx = prevIndex(queueInput());
   if (idx < 0) return;
   try {
-    await loadIndex(idx);
+    await jumpTo(idx);
   } catch {}
 }
 
 export async function toggleShuffle() {
-  const { shuffle, setShuffle } = useQueueStore.getState();
+  const { shuffle, setShuffle, index } = useQueueStore.getState();
   setShuffle(!shuffle);
+  await syncNativeQueueFromStore(index, { autoPlay: false });
 }
 
-export function cycleRepeat() {
+export async function cycleRepeat() {
   const { repeat, setRepeat } = useQueueStore.getState();
-  setRepeat(repeat === "off" ? "queue" : repeat === "queue" ? "track" : "off");
+  const next = repeat === "off" ? "queue" : repeat === "queue" ? "track" : "off";
+  setRepeat(next);
+  await applyRepeatMode(next);
 }
 
 export async function jumpTo(index: number) {
   const song = useQueueStore.getState().songs[index];
   if (song) errorRetried.delete(song.id);
-  try {
-    await loadIndex(index);
-  } catch {}
+  await syncNativeQueueFromStore(index, { autoPlay: true });
 }
 
 export async function togglePlayPause() {
@@ -242,8 +311,6 @@ export async function togglePlayPause() {
 }
 
 // ---- Play accounting ----
-// A play is counted after 10s of confirmed playback progress (not on load),
-// and the library store refresh is throttled.
 
 const PLAY_THRESHOLD_SECONDS = 10;
 const recordedTrackIds = new Set<string>();
@@ -273,14 +340,19 @@ async function recordConfirmedPlay(song: Song) {
   }
 }
 
-// Prefetch the next stream URL (shuffle-aware) so skips feel instant
+// Prefetch a few upcoming stream URLs so transitions stay instant.
 export function prefetchNext() {
-  const { songs, index, shuffle, repeat } = useQueueStore.getState();
+  const { songs, index, shuffle } = useQueueStore.getState();
   if (songs.length < 2) return;
-  const next = nextIndex({ length: songs.length, index, shuffle, repeat }, true);
-  if (next < 0) return;
-  const song = songs[next];
-  if (song) resolveStream(song.id).catch(() => {});
+
+  const candidates = shuffle
+    ? shuffledUpcomingIndices(songs.length, index)
+    : Array.from({ length: Math.min(3, songs.length - index - 1) }, (_, i) => index + i + 1);
+
+  for (const idx of candidates.slice(0, 3)) {
+    const song = songs[idx];
+    if (song) resolveStream(song.id).catch(() => {});
+  }
 }
 
 // ---- Playback error recovery ----
@@ -290,35 +362,32 @@ async function handlePlaybackError() {
   if (!song) return;
   invalidateStream(song.id);
   if (!errorRetried.has(song.id)) {
-    // First failure for this track: re-resolve with a fresh URL and retry once
     errorRetried.add(song.id);
     try {
-      await loadIndex(useQueueStore.getState().index);
+      await syncNativeQueueFromStore(useQueueStore.getState().index, { autoPlay: true, forceCurrent: true });
       return;
     } catch {}
   }
-  // Already retried (or reload failed): move on
-  const { songs, index, shuffle, repeat } = useQueueStore.getState();
-  const next = nextIndex({ length: songs.length, index, shuffle, repeat }, true);
-  if (next === index) {
-    // Auto-advance would replay the same broken track forever
-    // (single-track queue with shuffle or repeat "track") — stop instead.
-    await TrackPlayer.pause();
-    return;
-  }
   await playNext(true);
 }
+
+// One-shot retry bookkeeping for playback errors, keyed by video id
+const errorRetried = new Set<string>();
 
 // ---- Playback service (registered in root layout) ----
 
 export async function PlaybackService() {
   if (playbackServiceRegistered) return;
   playbackServiceRegistered = true;
+
+  await hydrateQueueStore().catch(() => {});
+  await applyRepeatMode(useQueueStore.getState().repeat).catch(() => {});
+
   if (Platform.OS === "web") {
-    // OS media keys / browser media HUD (native uses Remote* events instead)
     const { setupMediaSession } = await import("./web-media-session");
     setupMediaSession();
   }
+
   TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
   TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
   TrackPlayer.addEventListener(Event.RemoteNext, () => playNext(false));
@@ -331,21 +400,30 @@ export async function PlaybackService() {
       await TrackPlayer.pause();
     }
   });
-  TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
-    const { repeat } = useQueueStore.getState();
-    const song = currentSong();
-    if (!song) return;
-    if (repeat === "track") {
-      try {
-        await loadIndex(useQueueStore.getState().index);
-      } catch {}
-    } else {
-      await playNext(true);
+
+  TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event: any) => {
+    const trackId =
+      typeof event?.track === "string"
+        ? event.track
+        : typeof event?.track?.id === "string"
+          ? event.track.id
+          : null;
+
+    if (trackId) {
+      const { songs } = useQueueStore.getState();
+      const idx = songs.findIndex((s) => s.id === trackId);
+      if (idx >= 0) {
+        useQueueStore.getState().setIndex(idx);
+        prefetchNext();
+        await refreshUpcomingQueue(idx).catch(() => {});
+        return;
+      }
     }
+
+    const current = currentSong();
+    if (current) prefetchNext();
   });
-  TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
-    prefetchNext();
-  });
+
   TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async (event) => {
     if (event.position >= PLAY_THRESHOLD_SECONDS) {
       const song = currentSong();
