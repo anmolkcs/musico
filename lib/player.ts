@@ -298,6 +298,14 @@ async function handlePlaybackError() {
     } catch {}
   }
   // Already retried (or reload failed): move on
+  const { songs, index, shuffle, repeat } = useQueueStore.getState();
+  const next = nextIndex({ length: songs.length, index, shuffle, repeat }, true);
+  if (next === index) {
+    // Auto-advance would replay the same broken track forever
+    // (single-track queue with shuffle or repeat "track") — stop instead.
+    await TrackPlayer.pause();
+    return;
+  }
   await playNext(true);
 }
 
@@ -328,7 +336,9 @@ export async function PlaybackService() {
     const song = currentSong();
     if (!song) return;
     if (repeat === "track") {
-      await loadIndex(useQueueStore.getState().index);
+      try {
+        await loadIndex(useQueueStore.getState().index);
+      } catch {}
     } else {
       await playNext(true);
     }

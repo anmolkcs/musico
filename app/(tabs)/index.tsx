@@ -46,6 +46,18 @@ export default function HomeScreen() {
     return picks;
   }, [recent, liked, songs]);
 
+  const editorialQueue: Song[] = React.useMemo(
+    () =>
+      editorialCuts.map((t) => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        duration: t.duration,
+        thumbnail: t.thumbnail,
+      })),
+    [editorialCuts]
+  );
+
   const playRecent = (index: number) => {
     const queue: Song[] = recent.map((t) => ({
       id: t.id,
@@ -139,7 +151,7 @@ export default function HomeScreen() {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {recent.length > 0 ? "Jump back in" : "Your rotation"}
               </Text>
-              <Pressable onPress={() => router.push("/library/songs")}>
+              <Pressable hitSlop={8} onPress={() => router.push("/library/songs")}>
                 <Text style={[styles.seeAll, { color: colors.accent }]}>See all</Text>
               </Pressable>
             </View>
@@ -186,7 +198,7 @@ export default function HomeScreen() {
           <>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Recently played</Text>
-              <Pressable onPress={() => router.push("/library/history")}>
+              <Pressable hitSlop={8} onPress={() => router.push("/library/history")}>
                 <Text style={[styles.seeAll, { color: colors.accent }]}>See all</Text>
               </Pressable>
             </View>
@@ -221,38 +233,27 @@ export default function HomeScreen() {
         {editorialCuts.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <View>
+              <View style={{ gap: 2 }}>
                 <Text style={[styles.eyebrow, { color: colors.accent }]}>FROM YOUR LIBRARY</Text>
-                <Text style={[styles.sectionTitle, { color: colors.text, paddingTop: 2 }]}>In Rotation</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>In Rotation</Text>
               </View>
-              <Pressable onPress={() => router.push("/library/songs")}>
+              <Pressable hitSlop={8} onPress={() => router.push("/library/songs")}>
                 <Text style={[styles.seeAll, { color: colors.accent }]}>See all</Text>
               </Pressable>
             </View>
             <View style={{ gap: 2 }}>
-              {editorialCuts.map((item, i) => {
-                const queue: Song[] = editorialCuts.map((t) => ({
-                  id: t.id,
-                  title: t.title,
-                  artist: t.artist,
-                  duration: t.duration,
-                  thumbnail: t.thumbnail,
-                }));
-                return (
-                  <SongRow
-                    key={item.id}
-                    song={{ id: item.id, title: item.title, artist: item.artist, duration: item.duration, thumbnail: item.thumbnail }}
-                    index={i}
-                    queue={queue}
-                    sourceName="In Rotation"
-                  />
-                );
-              })}
-              {editorialCuts.length > 0 && (
-                <Text style={[styles.badgeHint, { color: colors.faint }]}>
-                  Badges reflect your library — liked and downloaded tracks are marked in the menu.
-                </Text>
-              )}
+              {editorialCuts.map((item, i) => (
+                <SongRow
+                  key={item.id}
+                  song={{ id: item.id, title: item.title, artist: item.artist, duration: item.duration, thumbnail: item.thumbnail }}
+                  index={i}
+                  queue={editorialQueue}
+                  sourceName="In Rotation"
+                />
+              ))}
+              <Text style={[styles.badgeHint, { color: colors.faint }]}>
+                Badges reflect your library — liked and downloaded tracks are marked in the menu.
+              </Text>
             </View>
           </>
         )}
@@ -335,11 +336,10 @@ const styles = StyleSheet.create({
     fontFamily: SANS.regular,
     fontSize: 14,
   },
-  moodList: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
   moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingTop: 12 },
   moodChip: { height: 32, borderRadius: 16, paddingHorizontal: 14, justifyContent: "center" },
   moodText: { fontFamily: SANS.semiBold, fontSize: 11 },
-  eyebrow: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.2, paddingHorizontal: 20 },
+  eyebrow: { fontFamily: SANS.semiBold, fontSize: 10, letterSpacing: 1.2 },
   badgeHint: { fontFamily: SANS.regular, fontSize: 11, paddingHorizontal: 20, paddingTop: 8, lineHeight: 16 },
   hiresCard: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 20, marginTop: 20, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, padding: 14 },
   hiresIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
@@ -347,25 +347,23 @@ const styles = StyleSheet.create({
   hiresBody: { fontFamily: SANS.regular, fontSize: 12, lineHeight: 17, marginTop: 3 },
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "flex-end",
     justifyContent: "space-between",
-    paddingRight: 20,
+    paddingHorizontal: 20,
+    marginTop: 26,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontFamily: SERIF.medium,
     fontSize: 21,
     lineHeight: 27,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 12,
   },
   seeAll: {
     fontFamily: SANS.semiBold,
     fontSize: 13,
+    paddingBottom: 3,
   },
-  heroSection: {
-    marginTop: 4,
-  },
+  heroSection: {},
   heroCard: {
     minHeight: 156,
     marginHorizontal: 20,

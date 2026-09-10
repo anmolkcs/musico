@@ -23,9 +23,9 @@ export default function PlayerScreen() {
   const router = useRouter();
   const playbackState = usePlaybackState();
   const { position, duration } = useProgress(500);
-const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
-   const song = songs[index] ?? null;
-   const liked = useLibraryStore((s) => s.liked);
+  const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
+  const song = songs[index] ?? null;
+  const liked = useLibraryStore((s) => s.liked);
   const likedSet = React.useMemo(() => new Set(liked.map((t) => t.id)), [liked]);
   const like = useLibraryStore((s) => s.like);
   const [showLyrics, setShowLyrics] = useState(false);
@@ -117,9 +117,6 @@ const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
                 color={isLiked ? colors.accent : colors.muted}
               />
             </Pressable>
-            <View style={[styles.avatar, { backgroundColor: colors.elevated }]}>
-              <Image source={{ uri: song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg` }} style={styles.avatarImage} contentFit="cover" />
-            </View>
           </View>
         )}
 
@@ -160,12 +157,6 @@ const { songs, index, shuffle, repeat, sourceName } = useQueueStore();
                 <View style={[styles.artDetails, { backgroundColor: "rgba(20,19,18,0.88)" }]}>
                   <Text numberOfLines={1} style={[styles.artTitle, { color: OVERLAY_TEXT }]}>{song.title}</Text>
                   <Text numberOfLines={1} style={[styles.artArtist, { color: OVERLAY_SUB }]}>{song.artist || "Unknown artist"}</Text>
-                  <View style={styles.artProgress}>
-                    <View style={[styles.artProgressFill, { backgroundColor: colors.copper, width: `${Math.min(100, (position / total) * 100)}%` }]} />
-                  </View>
-                </View>
-                <View style={[styles.artAction, { backgroundColor: "rgba(20,19,18,0.92)" }]}>
-                  <Ionicons name="disc-outline" size={22} color={colors.accent} />
                 </View>
               </View>
             </View>
@@ -445,13 +436,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: "hidden",
-  },
-  avatarImage: { width: "100%", height: "100%" },
   playlistContext: {
     flexDirection: "row",
     alignItems: "center",
@@ -490,9 +474,6 @@ const styles = StyleSheet.create({
   },
   artTitle: { fontFamily: SANS.semiBold, fontSize: 20, textAlign: "center" },
   artArtist: { fontFamily: SANS.regular, fontSize: 15, textAlign: "center", marginTop: 3 },
-  artProgress: { height: 4, borderRadius: 2, backgroundColor: "rgba(247,244,238,0.12)", marginTop: 17, overflow: "hidden" },
-  artProgressFill: { height: "100%", borderRadius: 2 },
-  artAction: { position: "absolute", right: 18, bottom: 18, width: 52, height: 52, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   art: {
     width: "100%",
     height: "100%",
@@ -520,7 +501,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.2,
   },
-seekWrap: {
+  seekWrap: {
     paddingHorizontal: 24,
     marginTop: 2,
   },
