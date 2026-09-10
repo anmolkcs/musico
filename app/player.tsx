@@ -14,6 +14,7 @@ import { cycleRepeat, playNext, playPrevious, togglePlayPause, toggleShuffle } f
 import { formatDuration } from "@/lib/types";
 import type { Song } from "@/lib/types";
 import { getLyrics } from "@/lib/lyrics";
+import { useSaavnArtwork } from "@/lib/saavn-art";
 import { useQueueStore } from "@/store/queue";
 import { useLibraryStore } from "@/store/library";
 
@@ -31,7 +32,14 @@ export default function PlayerScreen() {
   const [showLyrics, setShowLyrics] = useState(false);
   const [seeking, setSeeking] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
+  const [artFailed, setArtFailed] = useState(false);
   const playing = playbackState?.state === State.Playing || playbackState?.state === State.Buffering;
+  // High-res Saavn cover for the playing song; the YouTube thumbnail stays
+  // as the fallback. Hooks stay above the empty-state early return.
+  const saavnArt = useSaavnArtwork(song?.title, song?.artist, song != null);
+  React.useEffect(() => {
+    setArtFailed(false);
+  }, [song?.id, saavnArt]);
 
   // swipe-down to dismiss
   const dismissRef = useRef(router);
@@ -60,6 +68,8 @@ export default function PlayerScreen() {
 
   const isLiked = likedSet.has(song.id);
   const total = Math.max(1, duration || song.duration || 1);
+  const sleeveUri =
+    !artFailed && saavnArt ? saavnArt : song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]} {...panResponder.panHandlers}>
@@ -144,11 +154,12 @@ export default function PlayerScreen() {
             <View style={styles.artWrap} pointerEvents="none">
               <View style={[styles.artFrame, VINYL_SHADOW, { borderColor: colors.border }]}>
                 <Image
-                  source={{ uri: song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg` }}
+                  source={{ uri: sleeveUri }}
                   style={styles.art}
                   contentFit="cover"
                   cachePolicy="memory-disk"
                   transition={200}
+                  onError={() => setArtFailed(true)}
                 />
                 <View style={[styles.statusChip, { backgroundColor: "rgba(20,19,18,0.86)", borderColor: "rgba(247,244,238,0.10)" }]}>
                   <View style={[styles.liveDot, { backgroundColor: colors.accent }]} />

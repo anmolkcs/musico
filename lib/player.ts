@@ -336,8 +336,10 @@ export async function removeFromQueue(index: number) {
 export async function moveInQueue(from: number, to: number) {
   const { index: active, songs } = useQueueStore.getState();
   if (from <= active || to <= active || from >= songs.length || to >= songs.length) return;
-  useQueueStore.getState().moveSong(from, to);
+  // Native first: if TrackPlayer.move throws, the store is untouched and
+  // the two never diverge silently. The store update cannot fail.
   await TrackPlayer.move(from, to);
+  useQueueStore.getState().moveSong(from, to);
 }
 
 export async function clearUpcoming() {

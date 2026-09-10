@@ -260,6 +260,7 @@ export default function SearchScreen() {
               <SongRow
                 song={item}
                 showArtist={item.type === "album"}
+                enhanceArtwork={false}
                 onPress={
                   item.type === "artist"
                     ? () =>
@@ -267,7 +268,7 @@ export default function SearchScreen() {
                           pathname: "/library/artist",
                           params: { name: item.title, thumbnail: item.thumbnail },
                         })
-                    : undefined
+                    : () => setQuery(`${item.title} ${item.artist}`.trim())
                 }
                 trailing={
                   item.type === "artist" ? (
@@ -281,6 +282,9 @@ export default function SearchScreen() {
                 index={songIndexes.get(item.id) ?? 0}
                 queue={songs}
                 sourceName={`Search: ${query}`}
+                // Only the Songs tab upgrades art. The Videos tab (and any
+                // other song-type row outside it) keeps YouTube thumbnails.
+                enhanceArtwork={filter === "songs"}
               />
             )
           }

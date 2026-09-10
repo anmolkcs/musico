@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackState, State, useProgress } from "react-native-track-player";
 import { artworkFor } from "../lib/types";
 import { SANS } from "../lib/theme";
+import { useSaavnArtwork } from "../lib/saavn-art";
 import { playNext, togglePlayPause } from "../lib/player";
 import { useTheme } from "./Theme";
 import { useQueueStore } from "../store/queue";
@@ -22,7 +23,16 @@ export default function MiniPlayer() {
   const state = usePlaybackState();
   const playing = state?.state === State.Playing || state?.state === State.Buffering;
   const displayTrack = loading && queuedSong ? queuedSong : track ?? queuedSong;
-  const artwork = displayTrack && ("artwork" in displayTrack ? displayTrack.artwork : displayTrack.thumbnail);
+  // The queue only holds songs, so the Saavn upgrade is safe here.
+  const saavn = useSaavnArtwork(displayTrack?.title, displayTrack?.artist, displayTrack != null);
+  const [artFailed, setArtFailed] = React.useState(false);
+  const fallback = displayTrack && ("artwork" in displayTrack ? displayTrack.artwork : displayTrack.thumbnail);
+  React.useEffect(() => {
+    setArtFailed(false);
+  }, [displayTrack?.id, saavn]);
+  const artwork = displayTrack
+    ? (!artFailed && saavn ? saavn : (fallback ?? artworkFor(String(displayTrack.id))))
+    : null;
 
   if (!displayTrack) return null;
 
@@ -46,6 +56,7 @@ export default function MiniPlayer() {
           style={[styles.art, { backgroundColor: colors.elevated }]}
           contentFit="cover"
           cachePolicy="memory-disk"
+          onError={() => setArtFailed(true)}
         />
         <View style={styles.meta}>
           <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
