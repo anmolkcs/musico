@@ -26,6 +26,10 @@ export type SpotifyCollection = {
   kind: SpotifyKind;
   name: string;
   tracks: SpotifyTrack[];
+  /** Total tracks Spotify reports (may exceed tracks.length when truncated). */
+  totalCount?: number | null;
+  /** True when Spotify exposed more tracks than we could fetch. */
+  truncated?: boolean;
 };
 
 const ID_RE = /^[A-Za-z0-9]{10,30}$/;
@@ -130,6 +134,222 @@ export async function fetchSpotifyCollection(
     throw new Error("That doesn't look like a Spotify link. Paste a public playlist, album, or track link.");
   }
   const { kind, id } = parsed;
+
+  // Playlists/albums can exceed the ~100 tracks the embed page
+  // server-renders, so try the full paginated fetch first and fall back
+  // to the embed page when it is unavailable.
+  if (kind === "playlist") {
+    try {
+      const full = await fetchPlaylistFull(id, signal);
+      if (full.tracks.length > 0) return { kind, ...full };
+    } catch (e: any) {
+      if (signal?.aborted || e?.name === "AbortError") throw e;
+      // Fall through to the embed page.
+    }
+  } else if (kind === "album") {
+    try {
+      const full = await fetchAlbumFull(id, signal);
+      if (full.tracks.length > 0) return { kind, ...full };
+    } catch (e: any) {
+      if (signal?.aborted || e?.name === "AbortError") throw e;
+      // Fall through to the embed page.
+    }
+  }
+
+  return fetchViaEmbed(kind, id, signal);
+}
+
+/**
+ * Full playlist fetch via Spotify's partner API.
+ *
+ * The embed page only server-renders the first ~100 tracks, but the same
+ * unauthenticated embed token
+ * (`open.spotify.com/embed/api/token` — no login, no dev account) unlocks
+ * paginated reads through `api-partner.spotify.com/pathfinder/v2/query`
+ * (`fetchPlaylist`, 100 tracks per page). Throws when the paginated path
+ * is unavailable so callers can fall back to the embed page.
+ */
+const PARTNER_URL = "https://api-partner.spotify.com/pathfinder/v2/query";
+const PLAYLIST_HASH = "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763";
+const ALBUM_HASH = "b9bfabef66ed756e5e13f68a942deb60bd4125ec1f1be8cc42769dc0259b4b10";
+const PAGE_LIMIT = 100;
+const MAX_IMPORT_TRACKS = 1000;
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+/** Test-only reset for the in-memory embed-token cache. */
+export function _resetSpotifyTokenCache() {
+  cachedToken = null;
+}
+
+async function getEmbedToken(signal?: AbortSignal): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token;
+  const res = await fetchWithTimeout(
+    "https://open.spotify.com/embed/api/token",
+    {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        Referer: "https://open.spotify.com/",
+      },
+    },
+    signal
+  );
+  if (!res.ok) throw new Error(`token ${res.status}`);
+  const data = (await (res as Response).json()) as {
+    accessToken?: string;
+    accessTokenExpirationTimestampMs?: number;
+  };
+  if (!data?.accessToken) throw new Error("token unavailable");
+  cachedToken = {
+    token: data.accessToken,
+    expiresAt: (data.accessTokenExpirationTimestampMs ?? Date.now() + 50 * 60_000) - 60_000,
+  };
+  return cachedToken.token;
+}
+
+type PartnerPage = { name: string; totalCount: number | null; tracks: SpotifyTrack[]; hasMore: boolean };
+
+async function fetchPlaylistPage(
+  id: string,
+  token: string,
+  offset: number,
+  signal?: AbortSignal
+): Promise<PartnerPage> {
+  const res = await fetchWithTimeout(
+    PARTNER_URL,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Origin: "https://open.spotify.com",
+        Referer: "https://open.spotify.com/",
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        "app-platform": "WebPlayer",
+      },
+      body: JSON.stringify({
+        operationName: "fetchPlaylist",
+        variables: { uri: `spotify:playlist:${id}`, offset, limit: PAGE_LIMIT, enableWatchFeedEntrypoint: true },
+        extensions: { persistedQuery: { version: 1, sha256Hash: PLAYLIST_HASH } },
+      }),
+    },
+    signal
+  );
+  if (!res.ok) throw new Error(`partner ${res.status}`);
+  const data = (await (res as Response).json()) as any;
+  const playlist = data?.data?.playlistV2;
+  if (!playlist) throw new Error("playlist unavailable");
+  const items: any[] = playlist?.content?.items ?? [];
+  const totalCount: number | null =
+    typeof playlist?.content?.totalCount === "number" ? playlist.content.totalCount : null;
+  const tracks: SpotifyTrack[] = [];
+  for (const item of items) {
+    const t = item?.itemV2?.data;
+    if (item?.itemV2?.__typename !== "TrackResponseWrapper" || !t || t.__typename === "NotFound") continue;
+    const title = String(t?.name ?? "").trim();
+    if (!title) continue;
+    const artist = Array.isArray(t?.artists?.items)
+      ? t.artists.items.map((a: any) => a?.profile?.name ?? "").filter(Boolean).join(", ")
+      : "";
+    tracks.push({ title, artist: artist.trim() });
+  }
+  return {
+    name: String(playlist?.name ?? "Spotify import"),
+    totalCount,
+    tracks,
+    hasMore: items.length >= PAGE_LIMIT,
+  };
+}
+
+async function fetchPlaylistFull(
+  id: string,
+  signal?: AbortSignal
+): Promise<{ name: string; tracks: SpotifyTrack[]; totalCount?: number | null; truncated?: boolean }> {
+  const token = await getEmbedToken(signal);
+  const tracks: SpotifyTrack[] = [];
+  let name = "Spotify import";
+  let totalCount: number | null = null;
+  let offset = 0;
+  for (;;) {
+    if (signal?.aborted) throw new Error("Cancelled");
+    const page = await fetchPlaylistPage(id, token, offset, signal);
+    name = page.name || name;
+    if (totalCount == null) totalCount = page.totalCount;
+    tracks.push(...page.tracks);
+    offset += PAGE_LIMIT;
+    if (tracks.length >= MAX_IMPORT_TRACKS) {
+      return { name, tracks: tracks.slice(0, MAX_IMPORT_TRACKS), totalCount, truncated: true };
+    }
+    if (!page.hasMore) break;
+    if (totalCount != null && offset >= totalCount) break;
+    // Be gentle with the partner API between pages.
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  if (tracks.length === 0) throw new Error("No tracks found.");
+  const truncated = totalCount != null && totalCount > tracks.length;
+  return { name, tracks, totalCount, truncated: truncated || undefined };
+}
+
+async function fetchAlbumFull(
+  id: string,
+  signal?: AbortSignal
+): Promise<{ name: string; tracks: SpotifyTrack[]; totalCount?: number | null; truncated?: boolean }> {
+  const token = await getEmbedToken(signal);
+  const res = await fetchWithTimeout(
+    PARTNER_URL,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Origin: "https://open.spotify.com",
+        Referer: "https://open.spotify.com/",
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        "app-platform": "WebPlayer",
+      },
+      body: JSON.stringify({
+        operationName: "getAlbum",
+        variables: { uri: `spotify:album:${id}`, locale: "", offset: 0, limit: 50 },
+        extensions: { persistedQuery: { version: 1, sha256Hash: ALBUM_HASH } },
+      }),
+    },
+    signal
+  );
+  if (!res.ok) throw new Error(`partner ${res.status}`);
+  const data = (await (res as Response).json()) as any;
+  const album = data?.data?.albumUnion;
+  if (!album) throw new Error("album unavailable");
+  const items: any[] = album?.tracksV2?.items ?? [];
+  const artistFallback = Array.isArray(album?.artists?.items)
+    ? album.artists.items.map((a: any) => a?.profile?.name ?? "").filter(Boolean).join(", ")
+    : "";
+  const tracks: SpotifyTrack[] = [];
+  for (const item of items) {
+    const t = item?.track;
+    const title = String(t?.name ?? "").trim();
+    if (!title) continue;
+    const artist = Array.isArray(t?.artists?.items)
+      ? t.artists.items.map((a: any) => a?.profile?.name ?? "").filter(Boolean).join(", ")
+      : artistFallback;
+    tracks.push({ title, artist: artist.trim() });
+  }
+  if (tracks.length === 0) throw new Error("No tracks found.");
+  const totalCount: number | null =
+    typeof album?.tracksV2?.totalCount === "number" ? album.tracksV2.totalCount : null;
+  const truncated = totalCount != null && totalCount > tracks.length;
+  return { name: String(album?.name ?? "Spotify import"), tracks, totalCount, truncated: truncated || undefined };
+}
+
+const EMBED_CAP = 100;
+
+async function fetchViaEmbed(
+  kind: SpotifyKind,
+  id: string,
+  signal?: AbortSignal
+): Promise<SpotifyCollection> {
   const res = await fetchWithTimeout(
     `https://open.spotify.com/embed/${kind}/${id}`,
     {
@@ -171,5 +391,9 @@ export async function fetchSpotifyCollection(
   if (tracks.length === 0) {
     throw new Error("No tracks found. Private or empty collections can't be imported — make it public first.");
   }
-  return { kind, name, tracks };
+  // The embed page only server-renders the first ~100 tracks. When we hit
+  // that cap the playlist is probably longer — the paginated path above
+  // already tried, so flag it honestly instead of silently dropping songs.
+  const truncated = kind === "playlist" && rawList.length >= EMBED_CAP ? true : undefined;
+  return { kind, name, tracks, truncated };
 }

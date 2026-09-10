@@ -213,9 +213,21 @@ export default function ImportSpotifyScreen() {
           </Text>
           <Text style={[styles.collectionMeta, { color: colors.muted }]}>
             {rows.length} tracks
+            {collection.totalCount != null && collection.totalCount > rows.length
+              ? ` of ${collection.totalCount}`
+              : ""}
             {matched > 0 ? ` • ${matched} matched` : ""}
             {failed > 0 ? ` • ${failed} not found` : ""}
           </Text>
+          {collection.truncated && (
+            <Text style={[styles.truncatedNote, { color: colors.accent }]}>
+              Spotify only exposed the first {rows.length}
+              {collection.totalCount != null && collection.totalCount > rows.length
+                ? ` of ${collection.totalCount}`
+                : ""}
+              {" "}tracks — the rest could not be read without a Spotify login.
+            </Text>
+          )}
           {matching && (
             <View style={[styles.progressTrack, { backgroundColor: colors.elevated }]}>
               <View
@@ -315,6 +327,7 @@ const styles = StyleSheet.create({
   },
   fetchText: { fontFamily: SANS.semiBold, fontSize: 14 },
   tip: { fontFamily: SANS.regular, fontSize: 12, lineHeight: 17, marginTop: 10 },
+  truncatedNote: { fontFamily: SANS.regular, fontSize: 12, lineHeight: 17, marginTop: 6 },
   collectionHeader: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 },
   collectionName: { fontFamily: SERIF.medium, fontSize: 22, lineHeight: 28 },
   collectionMeta: { fontFamily: SANS.regular, fontSize: 13, marginTop: 2 },

@@ -17,6 +17,18 @@ async function initDb(): Promise<MusicoDb> {
   if (version < 1) {
     await db.execAsync("PRAGMA user_version = 1");
   }
+  if (version < 2) {
+    // Playlist covers + descriptions.
+    const cols = await db.getAllAsync<{ name: string }>("PRAGMA table_info(playlists)");
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has("description")) {
+      await db.execAsync("ALTER TABLE playlists ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+    }
+    if (!names.has("coverUri")) {
+      await db.execAsync("ALTER TABLE playlists ADD COLUMN coverUri TEXT NOT NULL DEFAULT ''");
+    }
+    await db.execAsync("PRAGMA user_version = 2");
+  }
   return db;
 }
 

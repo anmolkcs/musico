@@ -139,6 +139,16 @@ async function initDb(): Promise<MusicoDb> {
   } else {
     // Older images may predate the latest schema; idempotent migration.
     sqlDb.exec(SCHEMA_SQL);
+    for (const col of ["description TEXT NOT NULL DEFAULT ''", "coverUri TEXT NOT NULL DEFAULT ''"]) {
+      const name = col.split(" ")[0];
+      try {
+        const info = sqlDb.exec(`PRAGMA table_info(playlists)`);
+        const has = info[0]?.values?.some((row) => (row as unknown[])[1] === name);
+        if (!has) sqlDb.exec(`ALTER TABLE playlists ADD COLUMN ${col}`);
+      } catch {
+        // Best effort — reads degrade gracefully when columns are missing.
+      }
+    }
   }
 
   // Flush pending state before the tab closes.

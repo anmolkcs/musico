@@ -52,6 +52,12 @@
       ],
       "expo-sqlite",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Musico to access your photos to set playlist covers."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

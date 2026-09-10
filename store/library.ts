@@ -14,6 +14,7 @@ import {
   renamePlaylist,
   setLiked,
   setSetting,
+  updatePlaylistDetails,
   upsertTrack,
 } from "../lib/db";
 import { Playlist, Song, TrackRecord } from "../lib/types";
@@ -39,6 +40,7 @@ type LibraryState = {
   like: (song: Song, liked: boolean) => Promise<void>;
   newPlaylist: (name: string) => Promise<number>;
   rename: (id: number, name: string) => Promise<void>;
+  updateDetails: (id: number, details: { name?: string; description?: string; coverUri?: string | null }) => Promise<void>;
   removePlaylist: (id: number) => Promise<void>;
 };
 
@@ -135,6 +137,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   rename: async (id, name) => {
     const db = await openDb();
     await renamePlaylist(db, id, name);
+    await get().refresh();
+  },
+
+  updateDetails: async (id, details) => {
+    const db = await openDb();
+    await updatePlaylistDetails(db, id, details);
     await get().refresh();
   },
 

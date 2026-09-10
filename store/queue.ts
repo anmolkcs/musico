@@ -45,17 +45,28 @@ export const useQueueStore = create<QueueState>((set) => ({
       if (s.songs.length === 0) return { songs: [song], baseSongs: [song], index: 0 };
       const songs = [...s.songs];
       songs.splice(index, 0, song);
-      return { songs, index: index <= s.index ? s.index + 1 : s.index };
+      // Keep the un-shuffle reference complete: added tracks live at the
+      // end once shuffle is turned off.
+      const baseSongs = s.baseSongs.some((t) => t.id === song.id) ? s.baseSongs : [...s.baseSongs, song];
+      return { songs, baseSongs, index: index <= s.index ? s.index + 1 : s.index };
     }),
-  appendSong: (song) => set((s) => ({ songs: [...s.songs, song] })),
-  removeSongAt: (index) =>
+  appendSong: (song) =>
     set((s) => ({
-      songs: s.songs.filter((_, i) => i !== index),
-      index: index < s.index ? s.index - 1 : s.index,
+      songs: [...s.songs, song],
+      baseSongs: s.baseSongs.some((t) => t.id === song.id) ? s.baseSongs : [...s.baseSongs, song],
     })),
+  removeSongAt: (index) =>
+    set((s) => {
+      const removed = s.songs[index];
+      return {
+        songs: s.songs.filter((_, i) => i !== index),
+        baseSongs: removed ? s.baseSongs.filter((t) => t.id !== removed.id) : s.baseSongs,
+        index: index < s.index ? s.index - 1 : s.index,
+      };
+    }),
   moveSong: (from, to) =>
     set((s) => {
-      if (from === to || from < 0 || to < 0 || from >= s.songs.length) return {};
+      if (from === to || from < 0 || to < 0 || from >= s.songs.length || to >= s.songs.length) return {};
       const songs = [...s.songs];
       const [moved] = songs.splice(from, 1);
       songs.splice(to, 0, moved);
@@ -63,7 +74,19 @@ export const useQueueStore = create<QueueState>((set) => ({
       let index = s.index;
       if (from < index && to >= index) index -= 1;
       else if (from > index && to <= index) index += 1;
-      return { songs, index };
+      // Mirror manual reorders in the un-shuffle reference while unshuffled;
+      // while shuffled the reference keeps original order by design.
+      let baseSongs = s.baseSongs;
+      if (!s.shuffle) {
+        const next = [...s.baseSongs];
+        const bi = next.findIndex((t) => t.id === moved.id);
+        if (bi >= 0) {
+          next.splice(bi, 1);
+          next.splice(Math.min(to, next.length), 0, moved);
+          baseSongs = next;
+        }
+      }
+      return { songs, baseSongs, index };
     }),
 }));
 

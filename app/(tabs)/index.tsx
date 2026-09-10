@@ -11,6 +11,7 @@ import { playQueue } from "@/lib/player";
 import { artworkFor, Song } from "@/lib/types";
 import SongRow from "@/components/SongRow";
 import { LogoMark } from "@/components/Logo";
+import { CURATED_SHELVES } from "@/lib/curated";
 import { useLibraryStore } from "@/store/library";
 
 // Mood shortcuts — each runs a real search, no staged mixes.
@@ -193,6 +194,53 @@ export default function HomeScreen() {
           </View>
         )}
 
+        <View style={styles.sectionHeader}>
+          <View style={{ gap: 2 }}>
+            <Text style={[styles.eyebrow, { color: colors.accent }]}>CURATED SHELVES</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Start somewhere</Text>
+          </View>
+          <Pressable hitSlop={8} onPress={() => router.push("/search")}>
+            <Text style={[styles.seeAll, { color: colors.accent }]}>Explore</Text>
+          </Pressable>
+        </View>
+        <FlatList
+          horizontal
+          data={CURATED_SHELVES}
+          keyExtractor={(s) => s.id}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+          renderItem={({ item }) => (
+            <Pressable
+              style={({ pressed }) => [styles.shelfCard, pressed && { opacity: 0.92 }]}
+              onPress={() => router.push({ pathname: "/search", params: { q: item.query } })}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title}: ${item.description}`}
+            >
+              <LinearGradient
+                colors={item.gradient}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <View style={styles.shelfIcon}>
+                <Ionicons name={item.icon as any} size={20} color="#F7F4EE" />
+              </View>
+              <View style={styles.shelfCopy}>
+                <Text style={styles.shelfEyebrow}>{item.eyebrow}</Text>
+                <Text numberOfLines={1} style={styles.shelfTitle}>
+                  {item.title}
+                </Text>
+                <Text numberOfLines={2} style={styles.shelfDesc}>
+                  {item.description}
+                </Text>
+              </View>
+              <View style={styles.shelfPlay}>
+                <Ionicons name="play" size={14} color="#F7F4EE" style={{ marginLeft: 1 }} />
+              </View>
+            </Pressable>
+          )}
+        />
+
         {recent.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
@@ -278,7 +326,7 @@ export default function HomeScreen() {
             <Ionicons name="disc-outline" size={40} color={colors.faint} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>Your shelf is empty</Text>
             <Text style={[styles.emptyBody, { color: colors.muted }]}>
-              Search for a song or drop the tonearm on a listening room to begin.
+              Pick a curated shelf above, or search for a song to begin.
             </Text>
           </View>
         )}
@@ -426,6 +474,59 @@ const styles = StyleSheet.create({
   recentCard: {
     width: 128,
     gap: 7,
+  },
+  shelfCard: {
+    width: 216,
+    minHeight: 148,
+    borderRadius: 10,
+    overflow: "hidden",
+    padding: 14,
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  shelfIcon: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(247,244,238,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shelfCopy: {
+    gap: 3,
+    marginTop: 30,
+  },
+  shelfEyebrow: {
+    fontFamily: SANS.semiBold,
+    fontSize: 9,
+    letterSpacing: 1.1,
+    color: "#CFC8BF",
+  },
+  shelfTitle: {
+    fontFamily: SERIF.medium,
+    fontSize: 19,
+    lineHeight: 24,
+    color: "#F7F4EE",
+  },
+  shelfDesc: {
+    fontFamily: SANS.regular,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#CFC8BF",
+  },
+  shelfPlay: {
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(247,244,238,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   recentArt: {
     width: 128,

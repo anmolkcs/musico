@@ -105,12 +105,22 @@ export async function clearHistory(db: MusicoDb) {
 // ---- Playlists ----
 
 export async function getPlaylists(db: MusicoDb): Promise<Playlist[]> {
-  const rows = await db.getAllAsync<{ id: number; name: string; createdAt: number; count: number }>(
-    `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count
-     FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
-     GROUP BY p.id ORDER BY p.createdAt DESC`
-  );
-  return rows;
+  try {
+    const rows = await db.getAllAsync<{ id: number; name: string; createdAt: number; count: number; description?: string | null; coverUri?: string | null }>(
+      `SELECT p.id, p.name, p.createdAt, p.description, p.coverUri, COUNT(pt.trackId) AS count
+      FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
+      GROUP BY p.id ORDER BY p.createdAt DESC`
+    );
+    return rows.map((r) => ({ id: r.id, name: r.name, createdAt: r.createdAt, count: r.count, description: r.description ?? "", coverUri: r.coverUri ?? "" }));
+  } catch {
+    // Pre-migration database image: degrade to name-only rows.
+    const rows = await db.getAllAsync<{ id: number; name: string; createdAt: number; count: number }>(
+      `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count
+      FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
+      GROUP BY p.id ORDER BY p.createdAt DESC`
+    );
+    return rows.map((r) => ({ ...r, description: "", coverUri: "" }));
+  }
 }
 
 export async function createPlaylist(db: MusicoDb, name: string): Promise<number> {
@@ -120,6 +130,30 @@ export async function createPlaylist(db: MusicoDb, name: string): Promise<number
 
 export async function renamePlaylist(db: MusicoDb, id: number, name: string) {
   await db.runAsync(`UPDATE playlists SET name = ? WHERE id = ?`, name, id);
+}
+
+export async function updatePlaylistDetails(
+  db: MusicoDb,
+  id: number,
+  details: { name?: string; description?: string; coverUri?: string | null }
+) {
+  const sets: string[] = [];
+  const params: (string | number)[] = [];
+  if (details.name !== undefined) {
+    sets.push("name = ?");
+    params.push(details.name);
+  }
+  if (details.description !== undefined) {
+    sets.push("description = ?");
+    params.push(details.description);
+  }
+  if (details.coverUri !== undefined) {
+    sets.push("coverUri = ?");
+    params.push(details.coverUri ?? "");
+  }
+  if (sets.length === 0) return;
+  params.push(id);
+  await db.runAsync(`UPDATE playlists SET ${sets.join(", ")} WHERE id = ?`, ...params);
 }
 
 export async function deletePlaylist(db: MusicoDb, id: number) {
@@ -169,13 +203,24 @@ export async function addTracksToPlaylist(db: MusicoDb, playlistId: number, song
 }
 
 export async function getPlaylist(db: MusicoDb, id: number): Promise<Playlist | null> {
-  const row = await db.getFirstAsync<{ id: number; name: string; createdAt: number; count: number }>(
-    `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count
-     FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
-     WHERE p.id = ? GROUP BY p.id`,
-    id
-  );
-  return row ?? null;
+  try {
+    const row = await db.getFirstAsync<{ id: number; name: string; createdAt: number; count: number; description?: string | null; coverUri?: string | null }>(
+      `SELECT p.id, p.name, p.createdAt, p.description, p.coverUri, COUNT(pt.trackId) AS count
+      FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
+      WHERE p.id = ? GROUP BY p.id`,
+      id
+    );
+    if (!row) return null;
+    return { id: row.id, name: row.name, createdAt: row.createdAt, count: row.count, description: row.description ?? "", coverUri: row.coverUri ?? "" };
+  } catch {
+    const row = await db.getFirstAsync<{ id: number; name: string; createdAt: number; count: number }>(
+      `SELECT p.id, p.name, p.createdAt, COUNT(pt.trackId) AS count
+      FROM playlists p LEFT JOIN playlist_tracks pt ON pt.playlistId = p.id
+      WHERE p.id = ? GROUP BY p.id`,
+      id
+    );
+    return row ? { ...row, description: "", coverUri: "" } : null;
+  }
 }
 
 export async function getPlaylistTracks(db: MusicoDb, id: number): Promise<TrackRecord[]> {

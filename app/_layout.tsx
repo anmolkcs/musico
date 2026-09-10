@@ -45,6 +45,7 @@ export default function RootLayout() {
   const showMiniPlayer =
     pathname !== "/player" &&
     !pathname.startsWith("/player/") &&
+    pathname !== "/queue" &&
     pathname !== "/downloads" &&
     pathname !== "/settings";
 

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ export default function MiniPlayer() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const pathname = usePathname();
   const track = useActiveTrack();
   const queuedSong = useQueueStore((s) => s.songs[s.index]);
   const loading = useQueueStore((s) => s.loading);
@@ -25,8 +26,14 @@ export default function MiniPlayer() {
 
   if (!displayTrack) return null;
 
+  // The tab bar only exists on the three tab roots. Everywhere else
+  // (history, playlist detail, import, artist…) the bar must sit just
+  // above the bottom safe area instead of floating in mid-air.
+  const hasTabBar = pathname === "/" || pathname === "/search" || pathname === "/library";
+  const bottom = hasTabBar ? 64 + insets.bottom : insets.bottom + 12;
+
   return (
-    <View style={[styles.wrap, { bottom: 64 + insets.bottom }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom }]} pointerEvents="box-none">
       <Pressable
         style={[styles.bar, { backgroundColor: colors.tabBar, borderColor: colors.border }]}
         onPress={() => router.push("/player")}

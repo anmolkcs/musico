@@ -12,6 +12,8 @@ export type Playlist = {
   name: string;
   createdAt: number;
   count: number;
+  description: string;
+  coverUri: string;
 };
 
 export type TrackRecord = Song & {

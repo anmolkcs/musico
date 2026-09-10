@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchSpotifyCollection, parseSpotifyInput } from "../lib/spotify-import";
+import { _resetSpotifyTokenCache, fetchSpotifyCollection, parseSpotifyInput } from "../lib/spotify-import";
 
 describe("parseSpotifyInput", () => {
   it("parses playlist links", () => {
@@ -57,6 +57,7 @@ function mockFetch(html: string, status = 200) {
 describe("fetchSpotifyCollection", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    _resetSpotifyTokenCache();
   });
 
   it("parses a playlist tracklist", async () => {
@@ -111,5 +112,62 @@ describe("fetchSpotifyCollection", () => {
     vi.stubGlobal("fetch", spy);
     await expect(fetchSpotifyCollection("hello world")).rejects.toThrow(/doesn't look like/);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("paginates large playlists past the 100-track embed cap", async () => {
+    const makePage = (offset: number, count: number, total: number) => ({
+      data: {
+        playlistV2: {
+          name: "Big Mix",
+          content: {
+            totalCount: total,
+            items: Array.from({ length: count }, (_, i) => ({
+              itemV2: {
+                __typename: "TrackResponseWrapper",
+                data: {
+                  __typename: "Track",
+                  name: `Song ${offset + i + 1}`,
+                  artists: { items: [{ profile: { name: `Artist ${offset + i + 1}` } }] },
+                },
+              },
+            })),
+          },
+        },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any, init: any) => {
+        const u = String(url);
+        if (u.includes("/embed/api/token")) {
+          return { ok: true, status: 200, json: async () => ({ accessToken: "tok", accessTokenExpirationTimestampMs: Date.now() + 3600_000 }) };
+        }
+        if (u.includes("pathfinder")) {
+          const body = JSON.parse(String(init?.body ?? "{}"));
+          const offset = body?.variables?.offset ?? 0;
+          const total = 250;
+          const remaining = total - offset;
+          const count = Math.min(100, remaining);
+          return { ok: true, status: 200, json: async () => makePage(offset, count, total) };
+        }
+        throw new Error(`unexpected fetch ${u}`);
+      })
+    );
+    const col = await fetchSpotifyCollection("https://open.spotify.com/playlist/37i9dQZEVXbMDoHDwVN2tF");
+    expect(col.name).toBe("Big Mix");
+    expect(col.tracks).toHaveLength(250);
+    expect(col.tracks[0]).toEqual({ title: "Song 1", artist: "Artist 1" });
+    expect(col.tracks[249]).toEqual({ title: "Song 250", artist: "Artist 250" });
+    expect(col.totalCount).toBe(250);
+    expect(col.truncated).toBeUndefined();
+  });
+
+  it("flags truncation when only the embed fallback is available", async () => {
+    // Token + partner both fail -> embed fallback with 100 tracks is flagged.
+    const tracks = Array.from({ length: 100 }, (_, i) => ({ title: `Song ${i + 1}`, subtitle: `Artist ${i + 1}` }));
+    mockFetch(embedHtml({ type: "playlist", name: "Capped", trackList: tracks }));
+    const col = await fetchSpotifyCollection("https://open.spotify.com/playlist/37i9dQZEVXbMDoHDwVN2tF");
+    expect(col.tracks).toHaveLength(100);
+    expect(col.truncated).toBe(true);
   });
 });

@@ -17,7 +17,9 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS playlists (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    createdAt INTEGER NOT NULL
+    createdAt INTEGER NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    coverUri TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS playlist_tracks (
     playlistId INTEGER NOT NULL,

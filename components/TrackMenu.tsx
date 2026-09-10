@@ -32,6 +32,14 @@ export default function TrackMenu() {
   const [mode, setMode] = useState<"options" | "playlists" | "new">("options");
   const [name, setName] = useState("");
 
+  // Reset to the options view whenever a different track's menu opens —
+  // otherwise a stale "playlists"/"new" view leaks into the next menu.
+  const trackId = track?.id;
+  React.useEffect(() => {
+    setMode("options");
+    setName("");
+  }, [trackId]);
+
   const song = track;
   const liked = song ? likedSongs.some((t) => t.id === song.id) || songs.find((t) => t.id === song.id)?.liked : false;
   const download = song ? items[song.id] : undefined;

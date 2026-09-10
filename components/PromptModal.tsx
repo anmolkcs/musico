@@ -28,7 +28,7 @@ export default function PromptModal({
   // reset whenever reopened
   React.useEffect(() => {
     if (visible) setValue(initialValue);
-  }, [visible]);
+  }, [visible, initialValue]);
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
