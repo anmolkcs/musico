@@ -13,6 +13,7 @@ import { currentSong, useQueueStore } from "../store/queue";
 import { useLibraryStore } from "../store/library";
 import { nextIndex, prevIndex } from "./queue-logic";
 import { getLocalPlayableUrl } from "./local-media";
+import { createCommitLock } from "./commit-lock";
 import type { StreamResult } from "../modules/yt-core";
 
 let playerReady = false;
@@ -116,8 +117,25 @@ async function getPlayableUrl(song: Song): Promise<{ url: string; format: string
 // swapped in (remove + re-add) one or two tracks ahead of playback via
 // ensureResolved(). If a placeholder ever does reach the player (JS
 // suspended too long, resolve failure), the playback-error handler recovers.
+//
+// Concurrency: JS and the native player advance independently, and a
+// playQueue attempt spends seconds resolving streams before it touches the
+// player. Every native-queue mutation therefore runs through withQueueLock()
+// and re-validates against the live store at execution time, and each
+// playQueue attempt carries a generation: a superseded attempt abandons
+// instead of committing (newest tap wins), and native playback events are
+// ignored while a commit is pending, so the store and the native queue can
+// never permanently describe different queues.
 
 const UNRESOLVED_SCHEME = "musico://unresolved/";
+
+let queueGeneration = 0;
+// Generation of the playQueue attempt that has updated the store but not yet
+// committed its queue to the player; null once store and player agree.
+let pendingQueueGeneration: number | null = null;
+
+// Serializes native-queue mutations; see lib/commit-lock.ts.
+const withQueueLock = createCommitLock();
 
 function trackObject(song: Song, url: string, duration: number) {
   return {
@@ -156,57 +174,103 @@ const errorRetried = new Set<string>();
  * Swap the placeholder URL at `index` for a real stream. Only ever touches
  * upcoming tracks — the active track is reloaded via `load()` in the error
  * path instead, since removing the playing track would kill playback.
+ *
+ * Stream resolution happens outside the queue lock; the swap itself
+ * re-validates everything under the lock (right track, still a placeholder,
+ * still upcoming, queue not replaced), so a stale or superseded swap can
+ * never corrupt the queue that replaced it.
  */
 async function ensureResolved(index: number) {
+  const generation = queueGeneration;
   const { songs } = useQueueStore.getState();
   const song = songs[index];
   if (!song) return;
   try {
     const track = await TrackPlayer.getTrack(index);
-    if (!track || !String(track.url).startsWith(UNRESOLVED_SCHEME)) return;
+    if (!track || track.id !== song.id || !String(track.url).startsWith(UNRESOLVED_SCHEME)) return;
     const active = await TrackPlayer.getActiveTrackIndex();
     if (active !== undefined && index <= active) return;
     const { url, format } = await getPlayableUrl(song);
+    if (generation !== queueGeneration) return;
     let duration = song.duration;
     if (format !== "local" && duration <= 0) {
       try {
         duration = (await resolveStream(song.id)).duration;
       } catch {}
+      if (generation !== queueGeneration) return;
     }
-    // The player may have advanced while we were resolving — re-check so we
-    // never remove the track that is (now) playing.
-    const nowActive = await TrackPlayer.getActiveTrackIndex();
-    if (nowActive !== undefined && index <= nowActive) return;
-    await TrackPlayer.remove([index]);
-    await TrackPlayer.add([trackObject(song, url, duration)], index);
+    await withQueueLock(async () => {
+      if (generation !== queueGeneration) return;
+      // The player may have advanced or the queue been replaced while we
+      // were resolving — re-check identity so we never remove the track
+      // that is (now) playing or swap a song into the wrong slot.
+      const nowActive = await TrackPlayer.getActiveTrackIndex();
+      if (nowActive !== undefined && index <= nowActive) return;
+      const latest = await TrackPlayer.getTrack(index);
+      if (!latest || latest.id !== song.id || !String(latest.url).startsWith(UNRESOLVED_SCHEME)) return;
+      await TrackPlayer.remove([index]);
+      await TrackPlayer.add([trackObject(song, url, duration)], index);
+    });
   } catch (e) {
     console.warn("stream resolve failed", song.id, e);
   }
 }
 
 export async function playQueue(songs: Song[], startIndex: number, sourceName: string) {
-  const store = useQueueStore.getState();
-  store.setQueue(songs, startIndex, sourceName);
+  const generation = ++queueGeneration;
+  // Until this attempt commits, the native player still holds the previous
+  // queue while the store already describes this one — native playback
+  // events are gated off for that window (cleared again in `finally` on
+  // every exit path).
+  pendingQueueGeneration = generation;
+  useQueueStore.getState().setQueue(songs, startIndex, sourceName);
   errorRetried.clear();
+  let committedIndex = -1;
   try {
     const song = songs[startIndex];
     const { url, format } = await getPlayableUrl(song);
+    if (generation !== queueGeneration) return;
     let duration = song.duration;
     if (format !== "local" && duration <= 0) {
       try {
         duration = (await resolveStream(song.id)).duration;
       } catch {}
+      if (generation !== queueGeneration) return;
     }
-    await TrackPlayer.reset();
-    await TrackPlayer.add(songs.map((s, i) => (i === startIndex ? trackObject(s, url, duration) : unresolvedTrack(s))));
-    if (startIndex > 0) await TrackPlayer.skip(startIndex);
-    await TrackPlayer.play();
+    await withQueueLock(async () => {
+      // Newest tap wins: an attempt superseded while resolving its stream
+      // must not clobber the queue that replaced it.
+      if (generation !== queueGeneration) return;
+      // Build from the live store, not the captured list: enqueues, removes
+      // and reorders that happened while we were resolving are already
+      // reflected there and must survive this commit.
+      const { songs: liveSongs, index: liveIndex } = useQueueStore.getState();
+      const startSong = liveSongs[liveIndex];
+      if (!startSong || startSong.id !== song.id) return;
+      await TrackPlayer.reset();
+      await TrackPlayer.add(
+        liveSongs.map((s, i) => (i === liveIndex ? trackObject(s, url, duration) : unresolvedTrack(s)))
+      );
+      if (liveIndex > 0) await TrackPlayer.skip(liveIndex);
+      await TrackPlayer.play();
+      // Store and native queue describe the same queue again.
+      if (pendingQueueGeneration === generation) pendingQueueGeneration = null;
+      committedIndex = liveIndex;
+    });
   } finally {
-    useQueueStore.getState().setLoading(false);
+    if (pendingQueueGeneration === generation) {
+      // This attempt failed or was superseded without committing.
+      pendingQueueGeneration = null;
+    }
+    if (generation === queueGeneration) {
+      useQueueStore.getState().setLoading(false);
+    }
   }
-  // Warm up the upcoming streams so native auto-advance never waits on JS.
-  ensureResolved(startIndex + 1);
-  ensureResolved(startIndex + 2);
+  if (committedIndex >= 0) {
+    // Warm up the upcoming streams so native auto-advance never waits on JS.
+    ensureResolved(committedIndex + 1);
+    ensureResolved(committedIndex + 2);
+  }
 }
 
 export async function playSingle(song: Song, sourceName = "song") {
@@ -215,17 +279,34 @@ export async function playSingle(song: Song, sourceName = "song") {
 
 /** Jump to any track in the queue (queue screen, manual skip, error recovery). */
 export async function jumpTo(index: number) {
+  const generation = queueGeneration;
   const { songs } = useQueueStore.getState();
   const song = songs[index];
   if (!song) return;
   errorRetried.delete(song.id);
   await ensureResolved(index);
-  await TrackPlayer.skip(index);
-  await TrackPlayer.play();
-  ensureResolved(index + 1);
+  let jumped = false;
+  await withQueueLock(async () => {
+    // A queue commit is in flight: the native queue is about to be replaced,
+    // so skipping inside it would target the wrong queue entirely.
+    if (pendingQueueGeneration != null) return;
+    // The queue may have been replaced while the stream resolved; skip only
+    // if the slot still holds the song the user tapped.
+    if (generation !== queueGeneration) return;
+    const { songs: liveSongs } = useQueueStore.getState();
+    const target = liveSongs[index];
+    if (!target || target.id !== song.id) return;
+    await TrackPlayer.skip(index);
+    await TrackPlayer.play();
+    jumped = true;
+  });
+  if (jumped) ensureResolved(index + 1);
 }
 
 export async function playNext(auto = false) {
+  // A pending commit owns the player; acting on the old native queue would
+  // be undone the moment the new queue lands.
+  if (pendingQueueGeneration != null) return;
   const idx = nextIndex(queueInput(), auto);
   if (idx < 0) {
     await TrackPlayer.pause();
@@ -241,6 +322,7 @@ export async function playNext(auto = false) {
 }
 
 export async function playPrevious() {
+  if (pendingQueueGeneration != null) return; // a pending commit owns the player
   const position = await TrackPlayer.getPosition();
   if (position > 4) {
     await TrackPlayer.seekTo(0);
@@ -270,18 +352,25 @@ function shuffleArray<T>(arr: T[]): T[] {
  * next is reordered, in both the store and the native queue.
  */
 async function rebuildUpcoming(shuffled: boolean) {
-  const { songs, index, baseSongs } = useQueueStore.getState();
-  const played = songs.slice(0, index + 1);
-  const playedIds = new Set(played.map((s) => s.id));
-  const upcoming = shuffled
-    ? shuffleArray(songs.slice(index + 1))
-    : baseSongs.filter((s) => !playedIds.has(s.id));
-  await TrackPlayer.removeUpcomingTracks();
-  if (upcoming.length > 0) {
-    await TrackPlayer.add(upcoming.map(unresolvedTrack));
-  }
-  useQueueStore.getState().setSongs([...played, ...upcoming]);
-  ensureResolved(index + 1);
+  const generation = queueGeneration;
+  await withQueueLock(async () => {
+    if (generation !== queueGeneration) return;
+    // The active track may have advanced (or the queue been replaced) while
+    // this rebuild waited for the lock — redo the split from live state.
+    const { songs, index: liveIndex, baseSongs } = useQueueStore.getState();
+    const played = songs.slice(0, liveIndex + 1);
+    const playedIds = new Set(played.map((s) => s.id));
+    const upcoming = shuffled
+      ? shuffleArray(songs.slice(liveIndex + 1))
+      : baseSongs.filter((s) => !playedIds.has(s.id));
+    await TrackPlayer.removeUpcomingTracks();
+    if (upcoming.length > 0) {
+      await TrackPlayer.add(upcoming.map(unresolvedTrack));
+    }
+    useQueueStore.getState().setSongs([...played, ...upcoming]);
+  });
+  // No-ops safely (id re-validation) if the queue moved on meanwhile.
+  ensureResolved(useQueueStore.getState().index + 1);
 }
 
 export async function toggleShuffle() {
@@ -306,14 +395,19 @@ export function cycleRepeat() {
 // ---- Queue editing (queue screen / track menu) ----
 
 export async function enqueueNext(song: Song) {
-  const { index, songs } = useQueueStore.getState();
+  const { songs } = useQueueStore.getState();
   if (songs.length === 0) {
     await playQueue([song], 0, "queue");
     return;
   }
-  useQueueStore.getState().insertSongAt(song, index + 1);
-  await TrackPlayer.add([unresolvedTrack(song)], index + 1);
-  ensureResolved(index + 1);
+  await withQueueLock(async () => {
+    // Insert next to whatever is playing now — the live index, not the one
+    // captured on entry, in case playback advanced while we waited.
+    const insertAt = useQueueStore.getState().index + 1;
+    await TrackPlayer.add([unresolvedTrack(song)], insertAt);
+    useQueueStore.getState().insertSongAt(song, insertAt);
+  });
+  ensureResolved(useQueueStore.getState().index + 1);
 }
 
 export async function enqueueLast(song: Song) {
@@ -322,30 +416,41 @@ export async function enqueueLast(song: Song) {
     await playQueue([song], 0, "queue");
     return;
   }
-  useQueueStore.getState().appendSong(song);
-  await TrackPlayer.add([unresolvedTrack(song)]);
+  await withQueueLock(async () => {
+    await TrackPlayer.add([unresolvedTrack(song)]);
+    useQueueStore.getState().appendSong(song);
+  });
 }
 
 export async function removeFromQueue(index: number) {
-  const { index: active } = useQueueStore.getState();
-  if (index <= active) return;
-  useQueueStore.getState().removeSongAt(index);
-  await TrackPlayer.remove([index]);
+  await withQueueLock(async () => {
+    const { index: active, songs } = useQueueStore.getState();
+    if (index <= active || index >= songs.length) return;
+    // Native first: if TrackPlayer.remove throws, the store is untouched
+    // and the two never diverge silently. The store update cannot fail.
+    await TrackPlayer.remove([index]);
+    useQueueStore.getState().removeSongAt(index);
+  });
 }
 
 export async function moveInQueue(from: number, to: number) {
-  const { index: active, songs } = useQueueStore.getState();
-  if (from <= active || to <= active || from >= songs.length || to >= songs.length) return;
-  // Native first: if TrackPlayer.move throws, the store is untouched and
-  // the two never diverge silently. The store update cannot fail.
-  await TrackPlayer.move(from, to);
-  useQueueStore.getState().moveSong(from, to);
+  await withQueueLock(async () => {
+    const { index: active, songs } = useQueueStore.getState();
+    if (from <= active || to <= active || from >= songs.length || to >= songs.length) return;
+    // Native first: if TrackPlayer.move throws, the store is untouched and
+    // the two never diverge silently. The store update cannot fail.
+    await TrackPlayer.move(from, to);
+    useQueueStore.getState().moveSong(from, to);
+  });
 }
 
 export async function clearUpcoming() {
-  const { index } = useQueueStore.getState();
-  useQueueStore.getState().setSongs(useQueueStore.getState().songs.slice(0, index + 1));
-  await TrackPlayer.removeUpcomingTracks();
+  await withQueueLock(async () => {
+    const { index, songs } = useQueueStore.getState();
+    if (index + 1 >= songs.length) return; // nothing upcoming
+    await TrackPlayer.removeUpcomingTracks();
+    useQueueStore.getState().setSongs(songs.slice(0, index + 1));
+  });
 }
 
 export async function togglePlayPause() {
@@ -399,6 +504,11 @@ async function recordConfirmedPlay(song: Song) {
 // ---- Playback error recovery ----
 
 async function handlePlaybackError() {
+  // An error fired by the previous queue while a new one is being committed
+  // refers to tracks the player is about to discard — recovering it would
+  // act on store data for a queue the player no longer holds.
+  if (pendingQueueGeneration != null) return;
+  const generation = queueGeneration;
   const { songs, index, shuffle, repeat } = useQueueStore.getState();
   const song = songs[index];
   if (!song) return;
@@ -415,9 +525,18 @@ async function handlePlaybackError() {
           duration = (await resolveStream(song.id)).duration;
         } catch {}
       }
-      await TrackPlayer.load(trackObject(song, url, duration));
-      await TrackPlayer.play();
-      return;
+      let recovered = false;
+      await withQueueLock(async () => {
+        // The queue may have been replaced while the stream resolved; only
+        // reload if this error still belongs to the playing track.
+        if (generation !== queueGeneration) return;
+        if (useQueueStore.getState().songs[index]?.id !== song.id) return;
+        await TrackPlayer.load(trackObject(song, url, duration));
+        await TrackPlayer.play();
+        recovered = true;
+      });
+      if (recovered) return;
+      if (generation !== queueGeneration) return; // stale error — not ours to handle
     } catch {}
   }
   // Already retried (or reload failed): move on. Each track only gets one
@@ -459,6 +578,16 @@ export async function PlaybackService() {
   TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
     const { index } = event;
     if (index == null || index < 0) return;
+    // While a queue commit is pending, the native queue still reflects the
+    // queue being replaced; letting its events through would drive the store
+    // to indices of a queue that no longer exists.
+    if (pendingQueueGeneration != null) return;
+    // This event is the single source of truth for the active index, but
+    // only for the queue the store knows: accept it when the store's song at
+    // that index is the track that actually became active.
+    const song = useQueueStore.getState().songs[index];
+    const nativeId = event.track?.id;
+    if (!song || (nativeId !== undefined && nativeId !== song.id)) return;
     useQueueStore.getState().setIndex(index);
     // Resolve upcoming streams well before the native layer reaches them.
     ensureResolved(index + 1);
@@ -468,9 +597,17 @@ export async function PlaybackService() {
     // Repeat "track"/"queue" are handled natively; reaching queue end means
     // repeat is off. Native stops on its own — just settle the UI state.
     if (!currentSong()) return;
-    await TrackPlayer.pause();
+    await withQueueLock(async () => {
+      // By the time the lock is ours, a new queue may be committing — its
+      // play() must not be muted by a pause meant for the old queue.
+      if (pendingQueueGeneration != null) return;
+      await TrackPlayer.pause();
+    });
   });
   TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async (event) => {
+    // Progress from the tail of a queue being replaced must not count plays
+    // against the new queue already reflected in the store.
+    if (pendingQueueGeneration != null) return;
     if (event.position >= PLAY_THRESHOLD_SECONDS) {
       const song = currentSong();
       if (song) await recordConfirmedPlay(song);
